@@ -226,4 +226,23 @@ ES = {
     "opened in {browser}": "se abrió en {browser}",
     "to find open tabs or make windows, allow DisplayPad to control {browser} in System Settings > Privacy & Security > Automation":
         "para encontrar pestañas abiertas o abrir ventanas, permite que DisplayPad controle {browser} en Ajustes del Sistema > Privacidad y seguridad > Automatización",
+    # the floating pad
+    "the floating pad needs a shortcut or a mouse button": "el pad flotante necesita un atajo o un botón del mouse",
+    "'{part}' can't be used in the floating pad's shortcut: use ⌘, ⌥, ⌃ or ⇧ and then one key or mouse button":
+        "'{part}' no se puede usar en el atajo del pad flotante: usa ⌘, ⌥, ⌃ o ⇧ y luego una tecla o un botón del mouse",
+    "the floating pad's shortcut needs a key or a mouse button after the modifiers":
+        "el atajo del pad flotante necesita una tecla o un botón del mouse después de los modificadores",
+    "unknown key '{key}' in the floating pad's shortcut": "tecla desconocida '{key}' en el atajo del pad flotante",
+    "the floating pad's shortcut needs ⌘, ⌃, ⌥ or ⇧ with that key (F-keys can be alone)":
+        "el atajo del pad flotante necesita ⌘, ⌃, ⌥ o ⇧ con esa tecla (las teclas F pueden ir solas)",
+    "macOS doesn't allow shortcuts with only ⌥ or ⌥⇧: add ⌘ or ⌃": "macOS no permite atajos solo con ⌥ o ⌥⇧: agrega ⌘ o ⌃",
+    'popup must be an object like {"enabled": true, "trigger": "cmd+middle_click"}':
+        'popup debe ser un objeto como {"enabled": true, "trigger": "cmd+middle_click"}',
+    "popup: unknown setting '{name}'": "popup: ajuste desconocido '{name}'",
+    "popup.enabled must be true or false": "popup.enabled debe ser true o false",
+    "floating pad: {error}": "pad flotante: {error}",
+    "{name} must be an object": "{name} debe ser un objeto",
+    "that key is not on the pad any more": "esa tecla ya no está en el pad",
+    "macOS didn't let DisplayPad watch the mouse buttons (Input Monitoring)":
+        "macOS no dejó que DisplayPad vea los botones del mouse (Monitoreo de entrada)",
 }

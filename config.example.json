@@ -5,6 +5,7 @@
   "press_feedback": true,
   "corner_radius": 12,
   "mcp": {"enabled": false, "allow_run": false},
+  "popup": {"enabled": true, "trigger": "cmd+middle_click"},
   "start_page": "home",
   "pages": {
     "home": {

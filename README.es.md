@@ -4,7 +4,8 @@ Usa el **Mountain DisplayPad** (USB `3282:0009`) en macOS sin BaseCamp: una imag
 animación en cada una de las 12 teclas, varias páginas y una o varias acciones por tecla
 (abrir apps, atajos de teclado, texto, teclas multimedia, macros, scripts, brillo de las
 pantallas). Funciona como un servicio en segundo plano, con un **configurador gráfico**
-en el navegador y un **servidor MCP** opcional para que un asistente de IA te ayude a
+en su propia ventana, un **pad flotante** que trae tus teclas junto al mouse con un atajo
+(sin el pad) y un **servidor MCP** opcional para que un asistente de IA te ayude a
 configurar tus teclas.
 
 [English](README.md)
@@ -55,7 +56,12 @@ configurar tus teclas.
   varias veces, mientras mantienes la tecla, o encendido y apagado con cada pulsación.
 - **Configurador:** arrastra teclas para intercambiarlas, suelta imágenes sobre ellas,
   graba atajos (una sola tecla, o los modificadores izquierdo y derecho por separado) o
-  elígelos en un teclado en pantalla, y prueba las acciones antes de guardar. En inglés y español, claro y oscuro.
+  elígelos en un teclado en pantalla, y prueba las acciones antes de guardar. Se abre en su
+  propia ventana, como cualquier app del Mac (o en el navegador). En inglés y español, claro
+  y oscuro.
+- **Pad flotante:** **⌘ + clic central** (o el atajo que elijas) trae tus teclas a la
+  pantalla, junto al mouse. Haz clic en una, se ejecuta y el pad se va. Funciona sin el
+  DisplayPad conectado.
 - **Asistentes de IA (MCP):** Claude, Cursor, VS Code o cualquier app MCP de tu Mac puede
   leer y cambiar tu configuración si lo permites. Desactivado por defecto.
 - **Servicio:** arranca al iniciar sesión, se reconecta solo después de dormir el Mac o
@@ -67,6 +73,9 @@ configurar tus teclas.
   pero no se ha probado.
 - [Homebrew](https://brew.sh) y Python 3.11 o superior (`brew install python@3.14`).
 - Si falta `libusb`, el instalador lo instala con Homebrew.
+- Las Command Line Tools de Xcode (`xcode-select --install`; Homebrew también las necesita)
+  para crear la app DisplayPad. Sin ellas el configurador se abre en el navegador y no hay
+  pad flotante.
 
 ## Instalación
 
@@ -84,7 +93,8 @@ El instalador:
 - prepara su entorno de Python;
 - registra un servicio que arranca al iniciar sesión y se reinicia si falla
   (`~/Library/LaunchAgents/com.displaypadmac.agent.plist`);
-- agrega la app **DisplayPad** a Aplicaciones. Abre el configurador.
+- crea la app **DisplayPad** y la agrega a Aplicaciones: el configurador en su propia
+  ventana, y el pad flotante.
 
 Vuelve a ejecutar `./install.sh` para actualizar. Tu configuración se conserva.
 
@@ -95,7 +105,8 @@ que los necesita.
 
 - **Monitoreo de entrada:** sin él, el servicio no puede activar el DisplayPad.
 - **Accesibilidad:** lo necesitan las acciones de atajo, texto, teclas multimedia y macro,
-  y para grabar atajos que usa macOS.
+  y para grabar atajos que usa macOS. También evita que el clic del pad flotante llegue a la
+  app que está bajo el mouse.
 
 Si macOS no lo pide, abre *Ajustes del Sistema → Privacidad y seguridad*, abre la
 sección, pulsa **+** y elige ese `Python.app`. Después pulsa **Restart service**
@@ -112,11 +123,14 @@ Agrega `--all` para borrar también tu configuración e imágenes.
 ## El configurador
 
 Ábrelo con la app **DisplayPad** (Aplicaciones, Launchpad o Spotlight), con la tecla
-**⚙️ Configure** del pad o con `python -m displaypad_mac configure`.
+**⚙️ Configure** del pad o con `python -m displaypad_mac configure`. Se abre en su propia
+ventana, sin el navegador alrededor; arrastra la barra de arriba para moverla.
+**Visualización → Abrir en el navegador** lo abre en tu navegador. Si cierras la ventana con
+cambios sin guardar, pregunta si quieres guardarlos.
 
 El idioma por defecto es inglés: cámbialo a español en **Settings → Language**.
 
-![El configurador: las 12 teclas de una página a la izquierda y el editor de la tecla 1 a la derecha](docs/configurator-keys.png)
+![El configurador en su propia ventana: las 12 teclas de una página a la izquierda y el editor de la tecla 1 a la derecha](docs/configurator-window.png)
 
 
 - **Páginas:** pestañas arriba. Crea, renombra y elimina páginas, marca la página inicial
@@ -254,11 +268,46 @@ La pestaña **Ajustes** aplica los cambios al momento:
   OBS, o por qué no se puede conectar. El puerto es 4455 salvo que lo hayas cambiado en OBS.
   La contraseña se guarda en `obs.json` junto a la configuración, legible solo por ti, y no
   se vuelve a mostrar en el configurador ni a los asistentes de IA.
+- **Pad flotante:** activado o no, su atajo y si está listo. Ver
+  [El pad flotante](#el-pad-flotante).
 - **Asistentes de IA (MCP):** ver abajo.
 - **Acerca de:** versión, estado del servicio y de los permisos, y dónde están la
   configuración y el registro.
 
 ![La pestaña de Ajustes: idioma, apariencia, brillo y esquinas de las teclas del DisplayPad, y la conexión con OBS](docs/configurator-settings.png)
+
+## El pad flotante
+
+Un DisplayPad en la pantalla, para cuando el pad no está a mano o no está conectado.
+
+![El pad flotante: las 12 teclas de la página "home" en un panel translúcido donde está el mouse, con los nombres de página abajo](docs/floating-pad.png)
+
+- Pulsa **⌘ + clic central** en cualquier lugar. Tus teclas aparecen bajo el mouse, en la
+  página que muestra el DisplayPad (o la página de inicio), con las mismas imágenes y
+  teclas en vivo.
+- Haz clic en una tecla: el pad flotante se va y las acciones de la tecla se ejecutan en la
+  app que estaba al frente, así los atajos y el texto llegan donde estabas trabajando.
+- Las carpetas y las teclas de página se abren dentro del pad flotante. Los nombres de
+  página de abajo llevan a una página y **‹** vuelve atrás.
+- Con el teclado: **1** a **9**, **0**, **-** e **=** pulsan las teclas 1 a 12, **⌫** vuelve
+  atrás y **Esc** lo cierra. Un clic fuera también lo cierra. El botón de arriba a la
+  derecha abre el configurador.
+
+En **Ajustes → Pad flotante** puedes desactivarlo, grabar otro atajo y probarlo con
+**Mostrarlo ahora**. Un atajo es ⌘, ⌥, ⌃ o ⇧ y luego un botón del mouse (el clic central o
+un botón lateral) o una tecla; las teclas F pueden ir solas. La línea bajo el atajo dice si
+está listo.
+
+![Ajustes, Pad flotante: activarlo, el atajo ⌘ + clic central con el botón Grabar, "Listo" y Mostrarlo ahora](docs/settings-floating-pad.png)
+
+- Un **atajo de teclado** funciona en todas las apps y no necesita permisos.
+- Un **atajo del mouse** lo vigila el servicio. Con el permiso de Accesibilidad, el clic no
+  llega a la app bajo el mouse (en un navegador, ⌘ + clic central también abriría un enlace
+  en otra pestaña). Sin él, esa app también recibe el clic.
+
+Mientras el pad flotante está activado, la app DisplayPad sigue abierta en segundo plano,
+sin icono en el Dock; el servicio la abre al iniciar sesión. Con el pad flotante
+desactivado, la app se cierra al cerrar su ventana.
 
 ## Asistentes de IA (MCP)
 
@@ -492,6 +541,7 @@ completo.
   "press_feedback": true,
   "corner_radius": 12,
   "mcp": {"enabled": false, "allow_run": false},
+  "popup": {"enabled": true, "trigger": "cmd+middle_click"},
   "start_page": "inicio",
   "pages": {
     "inicio": {
@@ -508,6 +558,11 @@ completo.
 
 `corner_radius` redondea las esquinas de todas las imágenes de las teclas, en píxeles de la
 cara de 102 píxeles: `0` es cuadrada, `12` es el valor por defecto, `51` es redonda.
+
+`popup` es el [pad flotante](#el-pad-flotante): `trigger` son modificadores (`cmd`, `alt`,
+`ctrl`, `shift`) y luego un botón del mouse (`middle_click`, `mouse4` para atrás, `mouse5`
+para adelante) o una tecla, unidos con `+`: `"cmd+middle_click"`, `"ctrl+alt+space"`,
+`"f19"`.
 
 Un reloj en vivo y un medidor de CPU:
 
@@ -625,6 +680,7 @@ cd ~/Library/Application\ Support/DisplayPadMac
 | Para… | Comando |
 |---|---|
 | Abrir el configurador | `.venv/bin/python -m displaypad_mac configure` |
+| Volver a crear la app DisplayPad | `./install.sh` otra vez, desde la carpeta descargada |
 | Dibujar las páginas como PNG, sin el dispositivo | `.venv/bin/python -m displaypad_mac preview --config config.json` |
 | Ver y pedir los permisos | `.venv/bin/python -m displaypad_mac permissions` |
 | Reiniciar el servicio | `launchctl kickstart -k gui/$(id -u)/com.displaypadmac.agent` |
@@ -641,6 +697,11 @@ cd ~/Library/Application\ Support/DisplayPadMac
   Vuelve a ejecutar `./install.sh` y da los permisos al nuevo `Python.app`.
 - **Las teclas quedan negras después de dormir el Mac o desconectar el pad:** el servicio
   se reconecta solo en unos 2 segundos. Si no lo hace, reinícialo.
+- **El pad flotante no aparece:** **Ajustes → Pad flotante** dice por qué. Si falta la app
+  DisplayPad, instala las Command Line Tools de Xcode (`xcode-select --install`) y vuelve a
+  ejecutar `./install.sh`. Si otra app ya usa un atajo de teclado, graba otro.
+- **⌘ + clic central también abre un enlace en el navegador:** a Python le falta el
+  permiso de Accesibilidad, así que el clic también llega al navegador.
 - **La app DisplayPad dice que el servicio no responde:** revisa el registro. Si otro
   programa usa el puerto 8765, el configurador no arranca (el pad sigue funcionando).
 - **Pantalla − / + no cambia el monitor externo:** activa DDC/CI en el menú del monitor.

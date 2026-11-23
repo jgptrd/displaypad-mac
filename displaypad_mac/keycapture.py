@@ -15,6 +15,10 @@ when it started pass through, so nothing is left stuck.
 Rules, the same as the page's: a normal key ends it with the modifiers held at that moment
 ("cmd+shift+4", "f13"); modifiers pressed and let go with no other key are recorded on
 their own ("rcmd", "ctrl+rshift").
+
+With mouse=True (the floating pad's trigger) a click of the middle or an extra mouse button
+also ends it, with the modifiers held: "cmd+middle_click", "alt+mouse4". The click is held
+back from the app under the mouse.
 """
 
 import ctypes
@@ -38,6 +42,8 @@ DRAIN_SECONDS = 3.0
 _KEY_DOWN, _KEY_UP, _FLAGS = macro._KEY_DOWN, macro._KEY_UP, macro._FLAGS
 _TAP_DISABLED = macro._TAP_DISABLED
 _AUTOREPEAT, _KEYCODE, _SOURCE_PID = macro._AUTOREPEAT, macro._KEYCODE, macro._SOURCE_PID
+_OTHER_DOWN, _OTHER_UP, _BUTTON_NUMBER = macro._OTHER_DOWN, macro._OTHER_UP, macro._BUTTON_NUMBER
+_MOUSE_NAMES = {2: "middle_click", 3: "mouse4", 4: "mouse5"}
 _SIDE_BITS = macro._SIDE_BITS
 
 MOD_ORDER = ("fn", "ctrl", "rctrl", "alt", "ralt", "shift", "rshift", "cmd", "rcmd")  # ⌃⌥⇧⌘
@@ -79,11 +85,14 @@ class Capture:
         self._stop = threading.Event()
         self.state, self.combo, self.live, self.error, self.ended_by = "idle", "", "", "", ""
         self._seen = 0.0
+        self._mouse = False
+        self._buttons = set()  # mouse buttons whose release is held back too
 
     # -------------------------------------------------- control (web threads)
-    def start(self) -> dict:
+    def start(self, mouse: bool = False) -> dict:
         with self._lock:
             self._end_thread()
+            self._mouse, self._buttons = mouse, set()
             self._stop = threading.Event()
             self.state, self.combo, self.live, self.error, self.ended_by = "starting", "", "", "", ""
             self._held, self._down, self._mods = set(), set(), []
@@ -125,6 +134,8 @@ class Capture:
         tap = src = loop = None
         try:
             mask = (1 << _KEY_DOWN) | (1 << _KEY_UP) | (1 << _FLAGS)
+            if self._mouse:
+                mask |= (1 << _OTHER_DOWN) | (1 << _OTHER_UP)
             # active tap (options 0: it may drop events) at the head, where HID events enter
             # the window server, before macOS looks for its own shortcuts; the session is the
             # fallback. Both need the Accessibility permission.
@@ -152,7 +163,7 @@ class Capture:
                         self.ended_by, self.state = "gone", "cancelled"
                     elif now - started > CAPTURE_SECONDS:
                         self.ended_by, self.state = "timeout", "cancelled"
-                if self.state == "done" and (not self._held or now - self._done_at > DRAIN_SECONDS):
+                if self.state == "done" and (not (self._held or self._buttons) or now - self._done_at > DRAIN_SECONDS):
                     break
                 if self.state not in ("listening", "done"):
                     break
@@ -180,9 +191,11 @@ class Capture:
                 if self._tap:
                     _cg.CGEventTapEnable(self._tap, True)
                 return ev
-            if self.state not in ("listening", "done") or kind not in (_KEY_DOWN, _KEY_UP, _FLAGS) \
+            if self.state not in ("listening", "done") or kind not in (_KEY_DOWN, _KEY_UP, _FLAGS, _OTHER_DOWN, _OTHER_UP) \
                     or _cg.CGEventGetIntegerValueField(ev, _SOURCE_PID) == os.getpid():  # our own shortcuts and macros
                 return ev
+            if kind in (_OTHER_DOWN, _OTHER_UP):
+                return ev if self._click(kind, ev) else None
             return ev if self._key(kind, ev) else None
         except Exception:
             log.exception("shortcut capture")
@@ -236,6 +249,23 @@ class Capture:
         if "fn" in self._down:
             held.append("fn")
         self._finish("+".join(_sort(held) + [name]))
+        return False
+
+    def _click(self, kind, ev) -> bool:
+        """A middle or extra mouse button (mouse=True only); True lets it through."""
+        button = _cg.CGEventGetIntegerValueField(ev, _BUTTON_NUMBER)
+        if kind == _OTHER_UP:
+            if button in self._buttons:
+                self._buttons.discard(button)
+                return False
+            return True
+        name = _MOUSE_NAMES.get(button)
+        if not self._mouse or not name or self.state != "listening":
+            return True
+        self._buttons.add(button)
+        flags = _cg.CGEventGetFlags(ev)
+        mods = [m for m in ("ctrl", "alt", "shift", "cmd") if flags & macos.MOD_KEYS[m][1]]
+        self._finish("+".join(mods + [name]))
         return False
 
     def _finish(self, combo):

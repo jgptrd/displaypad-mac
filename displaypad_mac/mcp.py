@@ -94,6 +94,9 @@ ACTIONS
   Buttons: left, right, middle, back, forward. x/y are screen points from the top-left of the main display. At most 5000 steps, and at least one that is not a wait.
   play: "once"; "repeat" with "times" (1-1000); "while_held" (at least once, then again while the pad key is held); "toggle" (one press starts it looping, the next stops it). delays: "recorded" (the waits as written), "fixed" with "delay_ms" (that wait between all steps instead), "none" (as fast as possible). Pressing the key again while a macro plays does nothing, except to stop a "toggle" one. Keys and buttons it holds are let go when it ends or is stopped.
 
+FLOATING PAD
+- The DisplayPad app can show the pad on the screen, at the mouse, when the user presses a shortcut (default ⌘ + middle click); clicking a key runs its actions and closes it. It works without the hardware pad, with the same pages and keys, so everything above applies to it too. Settings: update_settings with "popup": {"enabled": true, "trigger": "cmd+middle_click"}. The trigger is modifiers (cmd, alt, ctrl, shift) and then a mouse button (middle_click, mouse4 = back, mouse5 = forward) or a key ("ctrl+alt+space", "cmd+shift+p", "f19"; F-keys can be alone). get_status "popup" tells whether it is ready: "app" false means the app is not running yet (the service starts it), "app_missing" that it is not installed (install.sh builds it; it needs the Xcode Command Line Tools), "hotkey": "taken" that another app uses that keyboard shortcut, "mouse": "listen" that without Accessibility the click also reaches the app under the mouse.
+
 PERMISSIONS
 - shortcut, text, media and macro need the macOS Accessibility permission for Python. If get_status shows "accessibility": false, tell the user to allow it in System Settings > Privacy & Security > Accessibility.
 
@@ -581,7 +584,7 @@ def show_page(svc, a):
 
 
 def update_settings(svc, a):
-    patch = {f: a[f] for f in ("language", "theme", "brightness", "press_feedback", "corner_radius")
+    patch = {f: a[f] for f in ("language", "theme", "brightness", "press_feedback", "corner_radius", "popup")
              if a.get(f) is not None}
     if a.get("start_page") is not None:
         def change(raw):
@@ -725,7 +728,7 @@ def _tool(fn, title, description, props=None, required=(), read_only=False, dest
 TOOLS = [
     _tool(get_status, "DisplayPad status",
           "Whether the DisplayPad is connected, the page it shows, brightness, macOS permissions "
-          "(input_monitoring, accessibility), the pages and the start page.", read_only=True),
+          "(input_monitoring, accessibility), the floating pad (popup), the pages and the start page.", read_only=True),
     _tool(get_reference, "Configuration reference",
           "Every key field and action type with examples, plus layout tips. Read it before creating keys.",
           read_only=True),
@@ -782,13 +785,19 @@ TOOLS = [
     _tool(update_settings, "Change general settings",
           "Pad backlight brightness (0-100), darken-on-press, rounded key corners (corner_radius: pixels "
           "on the 102-pixel key face, 0 square, 12 default, 51 round), start page, and the configurator's language "
-          "(en, es) and theme (system, light, dark).",
+          "(en, es) and theme (system, light, dark). popup: the floating pad (on the screen, at the mouse): "
+          "{\"enabled\": true, \"trigger\": \"cmd+middle_click\"}; either field alone changes only that one.",
           {"brightness": {"type": "integer", "minimum": 0, "maximum": 100},
            "press_feedback": {"type": "boolean"},
            "corner_radius": {"type": "integer", "minimum": 0, "maximum": 51},
            "start_page": TOP_PAGE,
            "language": {"type": "string", "enum": ["en", "es"]},
-           "theme": {"type": "string", "enum": ["system", "light", "dark"]}}),
+           "theme": {"type": "string", "enum": ["system", "light", "dark"]},
+           "popup": {"type": "object", "additionalProperties": False,
+                     "properties": {"enabled": {"type": "boolean"},
+                                    "trigger": {"type": "string", "description": "Modifiers and a mouse button "
+                                                "(middle_click, mouse4, mouse5) or a key, joined by +: "
+                                                "cmd+middle_click (default), ctrl+alt+space, f19."}}}}),
     _tool(test_actions, "Run actions now",
           "Run a list of actions immediately on this Mac and report each result (shell and AppleScript output "
           "included), to test an automation before saving it on a key. Only works if the user allowed it.",

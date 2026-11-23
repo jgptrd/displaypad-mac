@@ -75,6 +75,36 @@ cat > "$PLIST" <<EOF
 </plist>
 EOF
 
+echo "Creating the DisplayPad app (the configurator's window and the floating pad)..."
+# In /Applications it shows up in Finder, Launchpad and Spotlight. It is built here from
+# launcher/DisplayPad.swift; without the Xcode Command Line Tools a simpler one opens the
+# configurator in the browser, and the floating pad is not available.
+if [[ -w /Applications ]]; then LAUNCHER="/Applications/DisplayPad.app"
+else LAUNCHER="$HOME/Applications/DisplayPad.app"; mkdir -p "$HOME/Applications"; fi
+TMPI="$(mktemp -d)"
+NATIVE=1
+if ! "$SRC/launcher/build.sh" "$TMPI/DisplayPad.app" "$APP/.venv/bin/python" >"$TMPI/build.log" 2>&1; then
+  NATIVE=0
+  echo "  The app could not be built: it needs the Xcode Command Line Tools (xcode-select --install)."
+  echo "  For now the DisplayPad app opens the configurator in your browser, without the floating pad."
+  tail -3 "$TMPI/build.log" | sed 's/^/    /'
+fi
+pkill -x DisplayPad 2>/dev/null || true  # the running one, before it is replaced
+rm -rf "$LAUNCHER" "$HOME/Applications/DisplayPad.app"
+if (( NATIVE )); then
+  ditto "$TMPI/DisplayPad.app" "$LAUNCHER"
+else
+  osacompile -o "$LAUNCHER" "$SRC/launcher/DisplayPad.applescript"
+  "$APP/.venv/bin/python" -m displaypad_mac.appicon "$TMPI/DisplayPad.iconset"
+  iconutil -c icns "$TMPI/DisplayPad.iconset" -o "$LAUNCHER/Contents/Resources/applet.icns"
+  rm -rf "$LAUNCHER/Contents/Resources/Assets.car"
+  codesign --force --sign - "$LAUNCHER" >/dev/null 2>&1 || true
+fi
+rm -rf "$TMPI"
+touch "$LAUNCHER"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$LAUNCHER" 2>/dev/null || true
+mdimport "$LAUNCHER" 2>/dev/null || true
+
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 for i in {1..20}; do  # bootout is asynchronous: wait until the old service is gone
   launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || break
@@ -86,21 +116,6 @@ for i in {1..5}; do
   sleep 1
 done
 
-echo "Creating the DisplayPad app (opens the configurator)..."
-# In /Applications it shows up in Finder, Launchpad and Spotlight.
-if [[ -w /Applications ]]; then LAUNCHER="/Applications/DisplayPad.app"
-else LAUNCHER="$HOME/Applications/DisplayPad.app"; mkdir -p "$HOME/Applications"; fi
-TMPI="$(mktemp -d)"
-rm -rf "$LAUNCHER" "$HOME/Applications/DisplayPad.app"
-osacompile -o "$LAUNCHER" "$SRC/launcher/DisplayPad.applescript"
-"$APP/.venv/bin/python" -m displaypad_mac.appicon "$TMPI/DisplayPad.iconset"
-iconutil -c icns "$TMPI/DisplayPad.iconset" -o "$LAUNCHER/Contents/Resources/applet.icns"
-rm -rf "$TMPI" "$LAUNCHER/Contents/Resources/Assets.car"
-codesign --force --sign - "$LAUNCHER" >/dev/null 2>&1 || true
-touch "$LAUNCHER"
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$LAUNCHER" 2>/dev/null || true
-mdimport "$LAUNCHER" 2>/dev/null || true
-
 PYAPP="$("$APP/.venv/bin/python" -c 'import sys,os;print(os.path.join(sys.base_prefix,"Resources","Python.app"))')"
 cat <<EOF
 
@@ -108,13 +123,15 @@ cat <<EOF
 
    Configurator:   open the "DisplayPad" app ($LAUNCHER)
                    or press the ⚙️ Configure key on the pad
+   Floating pad:   ⌘ + middle click anywhere (change it in the app, Settings > Floating pad)
    Configuration:  $APP/config.json   (reloads by itself when saved)
    Log:            $LOG
    AI assistants:  turn them on in the app, Settings > AI assistants
 
 macOS asks for two permissions for "Python" (it can take a few seconds):
   • Input Monitoring  -> needed to talk to the DisplayPad
-  • Accessibility     -> needed for shortcuts, typed text and media keys
+  • Accessibility     -> needed for shortcuts, typed text, media keys and
+                         the floating pad's mouse shortcut
 If no prompt appears, add it by hand in System Settings >
 Privacy & Security > (Input Monitoring / Accessibility) > "+":
    $PYAPP

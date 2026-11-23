@@ -17,6 +17,9 @@
 - Sound keys (sound.py): while a key's sound plays, a ring around the key shows how far it
   has got; the main loop sends the key again each time the ring moves on (up to 10 times a
   second), one key per turn, like live keys.
+- The floating pad (popup.py): the same pages on the screen, brought up by a shortcut and shown
+  by the DisplayPad app. Without the pad connected, the service still follows the pages linked
+  to apps, so the floating pad opens on the right one.
 """
 
 import bisect
@@ -35,7 +38,7 @@ import threading
 import time
 from typing import Dict, List, Optional
 
-from . import __version__, appwatch, i18n, keycapture, live, macos, macro, sound, web
+from . import __version__, appwatch, i18n, keycapture, live, macos, macro, popup, sound, web
 from .actions import NEEDS_POST_EVENTS, actions_of, run_actions, validate_action
 from .driver import NUM_KEYS, DisplayPad, DisplayPadError, device_present
 from .i18n import t
@@ -48,7 +51,7 @@ APP_DIR = os.path.expanduser("~/Library/Application Support/DisplayPadMac")
 DEFAULT_CONFIG = os.path.join(APP_DIR, "config.json")
 WATCHDOG_SECONDS = 8
 THEMES = ("system", "light", "dark")
-SETTINGS = ("language", "theme", "brightness", "press_feedback", "corner_radius", "mcp")
+SETTINGS = ("language", "theme", "brightness", "press_feedback", "corner_radius", "mcp", "popup")
 # Inside a folder, key 1 is always this one: it goes back to the page or folder that holds it.
 BACK_KEY = {"emoji": "⬅️", "color": "#2B2B33"}
 BACK_LABEL = {"en": "Back", "es": "Volver"}
@@ -162,13 +165,17 @@ def parse_config(cfg: dict, base_dir: str) -> dict:
     mcp = cfg.get("mcp", {})
     if not isinstance(mcp, dict) or not all(isinstance(v, bool) for v in mcp.values()):
         raise ConfigError(t("mcp must be an object with true/false values"))
+    try:
+        floating = popup.settings_of(cfg.get("popup"))
+    except ValueError as e:
+        raise ConfigError(t("floating pad: {error}", error=e))
     return {"pages": norm, "start_page": start, "links": links,
             "brightness": max(0, min(100, int(bright))),
             "press_feedback": bool(cfg.get("press_feedback", True)),
             "corner_radius": round(corner),
             "language": lang, "theme": theme,
             "mcp": {"enabled": mcp.get("enabled", False), "allow_run": mcp.get("allow_run", False)},
-            "base_dir": base_dir}
+            "popup": floating, "base_dir": base_dir}
 
 
 def load_config(path: str) -> dict:
@@ -226,6 +233,7 @@ class Service:
         self.token = web.load_token(self.cfg["base_dir"])
         self.mcp_token = web.load_token(self.cfg["base_dir"], ".mcp-token")
         self.auto = appwatch.AutoPages()
+        self.popup = popup.Popup(self)
 
     # -------------------------------------------------- called from actions
     def request_page(self, name: str):
@@ -234,7 +242,15 @@ class Service:
             self._pending_page = name
 
     def open_configurator(self):
-        subprocess.Popen(["open", web.configurator_url(self.token)])
+        """In the DisplayPad app's own window; in the browser when the app can't be found."""
+        def run():
+            try:
+                if subprocess.run(["open", "-b", popup.APP_ID], capture_output=True, timeout=15).returncode == 0:
+                    return
+            except Exception:
+                pass
+            subprocess.Popen(["open", web.configurator_url(self.token)])
+        threading.Thread(target=run, daemon=True).start()
 
     # -------------------------------------------------- called from the configurator
     def status(self) -> dict:
@@ -250,7 +266,8 @@ class Service:
                 "animation": {"keys": len(self._anims), "fps": self._anim_stats[0],
                               "ms_per_frame": self._anim_stats[1]},
                 "live": {"keys": len(self._live_keys), **self.live.status()},
-                "sounds": {"keys": len(self._sound_keys), "playing": sound.playing_count()}}
+                "sounds": {"keys": len(self._sound_keys), "playing": sound.playing_count()},
+                "popup": self.popup.status()}
 
     def config_rev(self) -> str:
         """Short hash of config.json, so a window or an assistant can tell it changed under them."""
@@ -297,20 +314,26 @@ class Service:
         for name in patch:
             if name not in SETTINGS:
                 raise ConfigError(t("unknown setting '{name}'", name=name))
-        if "mcp" in patch and not isinstance(patch["mcp"], dict):
-            raise ConfigError(t("mcp must be an object with true/false values"))
+        for name in ("mcp", "popup"):
+            if name in patch and not isinstance(patch[name], dict):
+                raise ConfigError(t("{name} must be an object", name=name))
 
         def change(raw):
             for name, value in patch.items():
-                if name == "mcp":
-                    raw["mcp"] = {**(raw.get("mcp") or {}), **value}
+                if name in ("mcp", "popup"):
+                    raw[name] = {**(raw.get(name) or {}), **value}
                 else:
                     raw[name] = value
+            if "popup" in patch:
+                raw["popup"] = popup.settings_of(raw["popup"])  # the trigger written the usual way
         rev = self.update_config(change)
         if "language" in patch:
             i18n.set_language(patch["language"])
         if "mcp" in patch:  # at once, not after the main loop's reload: the next request may be an assistant's
             self.cfg["mcp"] = {**self.cfg["mcp"], **patch["mcp"]}
+        if "popup" in patch:
+            self.cfg["popup"] = popup.settings_of({**self.cfg["popup"], **patch["popup"]})
+            self.popup.configure(self.cfg["popup"])
         return rev
 
     def change_brightness(self, value):
@@ -533,6 +556,7 @@ class Service:
         for ev in self._released.values():
             ev.set()
         self._released.clear()
+        self._pressed, self._dark = set(), set()
         macro.stop_all()
         macos.release_all()
 
@@ -562,6 +586,7 @@ class Service:
         self.live.allow_commands(live.commands_in(cfg["pages"]))
         macro.keep_only(a for page in cfg["pages"].values() for spec in page if spec for a in actions_of(spec))
         i18n.set_language(cfg["language"])
+        self.popup.configure(cfg["popup"])
         if self.page not in cfg["pages"]:
             self.page, self.history = cfg["start_page"], []
         if cfg["brightness"] != self.brightness:
@@ -603,8 +628,10 @@ class Service:
                     self._show_now(k)
         self._pressed = keys
 
-    def _apply_pending(self):
-        if self._pending_brightness is not None:
+    def _apply_pending(self, draw: bool = True):
+        """draw=False: the pad is not connected; follow the page (for the floating pad) and draw
+        it when the pad comes back."""
+        if draw and self._pending_brightness is not None:
             self.brightness, self._pending_brightness = self._pending_brightness, None
             self.pad.set_brightness(self.brightness)
             log.info("brightness %d%%", self.brightness)
@@ -621,7 +648,8 @@ class Service:
             if target not in self.cfg["pages"]:  # page deleted in the configurator
                 target, self.history = self.cfg["start_page"], []
             self.page = target
-            self.draw_page()
+            if draw:
+                self.draw_page()
 
     def _watch_apps(self):
         """Shows the pages linked to apps (see appwatch); its own thread, so a slow look at
@@ -665,6 +693,7 @@ class Service:
         threading.Thread(target=self._watch_apps, name="appwatch", daemon=True).start()
         self.live.start()
         web.start(self, self.token)
+        self.popup.start()
         last_cfg_check = 0.0
         waiting_logged = False
         while not self._stop.is_set():
@@ -673,6 +702,7 @@ class Service:
                 last_cfg_check = time.monotonic()
                 self._check_config()
             if not self.pad.connected:
+                self._apply_pending(draw=False)
                 if not device_present():
                     if not waiting_logged:
                         log.info("waiting for the DisplayPad to be connected...")
@@ -713,6 +743,7 @@ class Service:
 
     def stop(self, *_):
         keycapture.capture.cancel()  # give the keyboard back first
+        self.popup.tap.set(None)
         self._stop.set()
 
 

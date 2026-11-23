@@ -6,6 +6,7 @@ APP="$HOME/Library/Application Support/DisplayPadMac"
 
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
+pkill -x DisplayPad 2>/dev/null || true  # the app (configurator window, floating pad)
 rm -rf "/Applications/DisplayPad.app" "$HOME/Applications/DisplayPad.app"
 echo "Service stopped and removed from login items."
 

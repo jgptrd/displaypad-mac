@@ -3,8 +3,9 @@
 Use the **Mountain DisplayPad** (USB `3282:0009`) on macOS, without BaseCamp: a picture
 or animation on each of the 12 keys, several pages, and one or more actions per key
 (open apps, keyboard shortcuts, typed text, media keys, macros, scripts, screen brightness).
-It runs as a background service and comes with a **visual configurator** in the browser
-and an optional **MCP server**, so an AI assistant can help you set up your keys.
+It runs as a background service and comes with a **visual configurator** in its own
+window, a **floating pad** that brings your keys up at the mouse with a shortcut (no pad
+needed), and an optional **MCP server**, so an AI assistant can help you set up your keys.
 
 [Español](README.es.md)
 
@@ -53,7 +54,11 @@ and an optional **MCP server**, so an AI assistant can help you set up your keys
   while the key is held, or on and off with each press.
 - **Configurator:** drag keys to swap them, drop pictures on them, record shortcuts
   (a single key, or left and right modifiers apart) or pick them on an on-screen keyboard,
-  test actions and see their output before you save. English and Spanish, light and dark.
+  test actions and see their output before you save. It opens in its own window, like any
+  Mac app (or in the browser). English and Spanish, light and dark.
+- **Floating pad:** **⌘ + middle click** (or a shortcut you choose) brings your keys up on
+  the screen, at the mouse. Click one and it runs and goes away. It works without the
+  DisplayPad connected.
 - **AI assistants (MCP):** Claude, Cursor, VS Code or any MCP app on your Mac can read
   and change your setup when you allow it. Off by default.
 - **Service:** starts at login, reconnects by itself after sleep or unplugging, and
@@ -64,6 +69,9 @@ and an optional **MCP server**, so an AI assistant can help you set up your keys
 - macOS. Tested on macOS 27.2 on Apple Silicon; Intel Macs should work but are untested.
 - [Homebrew](https://brew.sh) and Python 3.11 or newer (`brew install python@3.14`).
 - The installer adds `libusb` with Homebrew if it is missing.
+- The Xcode Command Line Tools (`xcode-select --install`; Homebrew needs them too) to build
+  the DisplayPad app. Without them the configurator opens in the browser and there is no
+  floating pad.
 
 ## Install
 
@@ -81,7 +89,8 @@ The installer:
 - sets up its Python environment;
 - registers a service that starts at login and restarts if it fails
   (`~/Library/LaunchAgents/com.displaypadmac.agent.plist`);
-- adds the **DisplayPad** app to Applications. It opens the configurator.
+- builds the **DisplayPad** app and adds it to Applications: the configurator in its own
+  window, and the floating pad.
 
 Run `./install.sh` again to update. Your configuration is kept.
 
@@ -92,7 +101,8 @@ macOS asks for two permissions for **Python**. The installer prints the path of 
 
 - **Input Monitoring:** without it the service cannot switch the DisplayPad on.
 - **Accessibility:** needed by the shortcut, text, media key and macro actions, and to
-  record shortcuts that macOS uses.
+  record shortcuts that macOS uses. It also keeps the floating pad's mouse click from
+  reaching the app under the mouse.
 
 If macOS doesn't ask, open *System Settings → Privacy & Security*, open the section,
 press **+** and choose that `Python.app`. Then press **Restart service** in the
@@ -109,9 +119,12 @@ Add `--all` to also delete your configuration and pictures.
 ## The configurator
 
 Open it with the **DisplayPad** app (Applications, Launchpad or Spotlight), with the
-**⚙️ Configure** key on the pad, or with `python -m displaypad_mac configure`.
+**⚙️ Configure** key on the pad, or with `python -m displaypad_mac configure`. It opens in
+its own window, without the browser around it; drag the bar at the top to move it.
+**View → Open in Browser** opens it in your browser instead. If you close the window with
+unsaved changes, it asks whether to save them.
 
-![The configurator: the 12 keys of a page on the left, the editor for key 1 on the right](docs/configurator-keys.png)
+![The configurator in its own window: the 12 keys of a page on the left, the editor for key 1 on the right](docs/configurator-window.png)
 
 
 - **Pages:** tabs at the top. Create, rename and delete pages, mark the start page (★)
@@ -236,11 +249,45 @@ The **Settings** tab applies changes right away:
   and shows OBS's version and scenes, or why it can't connect. The port is 4455 unless you
   changed it in OBS. The password is kept in `obs.json` next to the configuration, readable
   only by you, and never shown again in the configurator or to AI assistants.
+- **Floating pad:** on or off, its shortcut, and whether it is ready. See
+  [The floating pad](#the-floating-pad).
 - **AI assistants (MCP):** see below.
 - **About:** version, service and permission status, and where the configuration and
   log are.
 
 ![The Settings tab: language, appearance, DisplayPad brightness and key corners, and the OBS connection](docs/configurator-settings.png)
+
+## The floating pad
+
+A DisplayPad on the screen, for when the pad is out of reach or not connected.
+
+![The floating pad: the 12 keys of the "home" page in a frosted panel where the mouse is, with the page names at the bottom](docs/floating-pad.png)
+
+- Press **⌘ + middle click** anywhere. Your keys come up under the mouse, on the page the
+  DisplayPad shows (or the start page), with the same pictures and live keys.
+- Click a key: the floating pad goes away and the key's actions run in the app that was
+  in front, so shortcuts and typed text land where you were working.
+- Folders and page keys open inside the floating pad. The page names at the bottom jump
+  to a page and **‹** goes back.
+- From the keyboard: **1** to **9**, **0**, **-** and **=** press keys 1 to 12, **⌫** goes
+  back and **Esc** closes it. A click outside also closes it. The button at the top right
+  opens the configurator.
+
+In **Settings → Floating pad** you can turn it off, record another shortcut and try it
+with **Show it now**. A shortcut is ⌘, ⌥, ⌃ or ⇧ and then a mouse button (the middle click
+or a side button) or a key; F-keys can be alone. The line under the shortcut says whether
+it is ready.
+
+![Settings, Floating pad: turn it on, the shortcut ⌘ + Middle click with a Record button, "Ready" and Show it now](docs/settings-floating-pad.png)
+
+- A **keyboard shortcut** works in every app and needs no permission.
+- A **mouse shortcut** is watched by the service. With the Accessibility permission, the
+  click doesn't reach the app under the mouse (in a browser, ⌘ + middle click would also
+  open a link in a new tab). Without it, that app gets the click too.
+
+While the floating pad is on, the DisplayPad app keeps running in the background, with no
+Dock icon; the service starts it at login. With the floating pad off, the app quits when
+you close its window.
 
 ## AI assistants (MCP)
 
@@ -465,6 +512,7 @@ reloaded as soon as you save it.** Keys are numbered 1 to 12: 1-6 on the top row
   "press_feedback": true,
   "corner_radius": 12,
   "mcp": {"enabled": false, "allow_run": false},
+  "popup": {"enabled": true, "trigger": "cmd+middle_click"},
   "start_page": "home",
   "pages": {
     "home": {
@@ -481,6 +529,10 @@ reloaded as soon as you save it.** Keys are numbered 1 to 12: 1-6 on the top row
 
 `corner_radius` rounds the corners of every key picture, in pixels of the 102-pixel face:
 `0` is square, `12` is the default, `51` is round.
+
+`popup` is the [floating pad](#the-floating-pad): `trigger` is modifiers (`cmd`, `alt`,
+`ctrl`, `shift`) and then a mouse button (`middle_click`, `mouse4` for back, `mouse5` for
+forward) or a key, joined by `+`: `"cmd+middle_click"`, `"ctrl+alt+space"`, `"f19"`.
 
 A live clock and a CPU meter:
 
@@ -598,6 +650,7 @@ cd ~/Library/Application\ Support/DisplayPadMac
 | To… | Command |
 |---|---|
 | Open the configurator | `.venv/bin/python -m displaypad_mac configure` |
+| Rebuild the DisplayPad app | `./install.sh` again, from the downloaded folder |
 | Draw the pages as PNG files, without the device | `.venv/bin/python -m displaypad_mac preview --config config.json` |
 | Check and request permissions | `.venv/bin/python -m displaypad_mac permissions` |
 | Restart the service | `launchctl kickstart -k gui/$(id -u)/com.displaypadmac.agent` |
@@ -614,6 +667,12 @@ cd ~/Library/Application\ Support/DisplayPadMac
   `./install.sh` again and give the permissions to the new `Python.app`.
 - **Keys stay black after the Mac sleeps or the pad is unplugged:** the service
   reconnects by itself in about 2 seconds. If it doesn't, restart it.
+- **The floating pad doesn't come up:** **Settings → Floating pad** says why. If the
+  DisplayPad app is missing, install the Xcode Command Line Tools
+  (`xcode-select --install`) and run `./install.sh` again. If another app already uses a
+  keyboard shortcut, record another one.
+- **⌘ + middle click also opens a link in the browser:** Python is missing the
+  Accessibility permission, so the click reaches the browser too.
 - **The DisplayPad app says the service is not responding:** check the log. If another
   program uses port 8765 the configurator can't start (the pad keeps working).
 - **Screen − / + doesn't change the external monitor:** turn DDC/CI on in the monitor's

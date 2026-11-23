@@ -5,6 +5,7 @@ a DNS-rebinding page cannot reach it.
 - /api/*: the browser UI. Every call must carry the secret token (X-Token header)
   that the launcher passes in the URL. Without it, any website could POST a
   "shell" action through the browser.
+- /pad: the floating pad (popup.py), shown by the DisplayPad app. Same token as the configurator.
 - /mcp: the MCP server for AI assistants (see mcp.py). Off until the user turns it
   on in Settings; needs "Authorization: Bearer <.mcp-token>" and rejects requests
   that a web page sends (Origin header from another site).
@@ -24,8 +25,8 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from . import anim, browsers, daemon, emojidata, i18n, keycapture, live, macos, macro, mcp, obs, presets, sound  # daemon: circular, used at call time only
-from .actions import test_actions
+from . import anim, browsers, daemon, emojidata, i18n, keycapture, live, macos, macro, mcp, obs, popup, presets, sound  # daemon: circular, used at call time only
+from .actions import run_actions, test_actions
 from .i18n import t
 from .render import MAX_CORNER, effect_of, effect_preview, frame_durations, render_key
 
@@ -36,19 +37,33 @@ STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 _page_cache = {}
 
 
-def _page():
-    """index.html, with a short hash of it written in. An open configurator compares its
-    hash with the one in /api/status and reloads itself after an update: an old page would
-    keep talking to the new service the old way."""
-    path = os.path.join(STATIC, "index.html")
+def _page(name: str = "index.html"):
+    """index.html (or pad.html), with a short hash of it written in. An open configurator
+    compares its hash with the one in /api/status and reloads itself after an update: an old
+    page would keep talking to the new service the old way. The floating pad does the same
+    with /api/pad."""
+    path = os.path.join(STATIC, name)
     st = os.stat(path)
     key = (st.st_mtime_ns, st.st_size)
-    if _page_cache.get("key") != key:
+    cache = _page_cache.setdefault(name, {})
+    if cache.get("key") != key:
         with open(path, "rb") as f:
             data = f.read()
         build = hashlib.sha1(data).hexdigest()[:12]
-        _page_cache.update(key=key, build=build, html=data.replace(b"__PAGE_BUILD__", build.encode(), 1))
-    return _page_cache["html"], _page_cache["build"]
+        cache.update(key=key, build=build, html=data.replace(b"__PAGE_BUILD__", build.encode(), 1))
+    return cache["html"], cache["build"]
+
+
+def pad_info(svc) -> dict:
+    """The pages for the floating pad: each page and folder with its 12 keys (null: empty),
+    the page the pad shows (or would show), and the order of the pages."""
+    cfg = svc.cfg
+    pages = {name: [{k: v for k, v in spec.items() if k != "folder"} if spec else None for spec in keys]
+             for name, keys in cfg["pages"].items()}
+    page = svc.page if svc.page in pages else cfg["start_page"]
+    return {"page": page, "start": cfg["start_page"], "pages": pages,
+            "order": [n for n in cfg["pages"] if "/" not in n], "corner": cfg["corner_radius"],
+            "language": cfg["language"], "build": _page("pad.html")[1], "rev": svc.config_rev()}
 MAX_BODY = 12 * 1024 * 1024
 APP_DIRS = ("/Applications", "/Applications/Utilities", "/System/Applications",
             "/System/Applications/Utilities", os.path.expanduser("~/Applications"))
@@ -248,6 +263,18 @@ class _Handler(BaseHTTPRequestHandler):
         svc = self.service
         if path in ("/", "/index.html"):
             self._send(200, _page()[0], "text/html; charset=utf-8")
+        elif path == "/pad":  # the floating pad, in the DisplayPad app
+            self._send(200, _page("pad.html")[0], "text/html; charset=utf-8")
+        elif path == "/api/pad":
+            self._json(pad_info(svc))
+        elif path == "/api/popup/wait":  # the DisplayPad app, waiting to show the floating pad
+            q = parse_qs(urlparse(self.path).query)
+            try:
+                seen = int(q.get("rev", ["-1"])[0])
+            except ValueError:
+                seen = -1
+            report = {"hotkey": q["hotkey"][0][:40]} if "hotkey" in q else {}
+            self._json(svc.popup.wait(seen, report))
         elif path == "/api/config":
             try:
                 with open(svc.config_path, "rb") as f:
@@ -342,9 +369,10 @@ class _Handler(BaseHTTPRequestHandler):
                     render_key(spec, base, corner=corner, live=lv).save(buf, "PNG")
                     self._send(200, buf.getvalue(), "image/png")
             elif path == "/api/live":  # the live keys the page shows: keeps their readings going, says when they change
-                looks = (json.loads(self._body() or b"{}") or {}).get("keys") or []
-                looks = [k for k in looks[:200] if isinstance(k, dict)]
-                svc.live.watch("portal", [k.get("live") for k in looks], ttl=live.LOOKER_TTL)
+                body = json.loads(self._body() or b"{}") or {}
+                looks = [k for k in (body.get("keys") or [])[:200] if isinstance(k, dict)]
+                who = "popup" if body.get("who") == "popup" else "portal"  # the floating pad, or the configurator
+                svc.live.watch(who, [k.get("live") for k in looks], ttl=live.LOOKER_TTL)
                 faces = [svc.live.face(k) if "live" in k else None for k in looks]
                 self._json({"sigs": [f["sig"] if f else "" for f in faces]})
             elif path == "/api/upload":
@@ -358,6 +386,20 @@ class _Handler(BaseHTTPRequestHandler):
                 body = json.loads(self._body())
                 pages = (body.get("pages") or svc.cfg["pages"])
                 self._json(test_actions(body.get("spec") or {}, svc, pages))
+            elif path == "/api/pad/press":  # a key clicked on the floating pad: {page, key (1-12)}
+                body = json.loads(self._body() or b"{}")
+                keys = svc.cfg["pages"].get(body.get("page"))
+                n = body.get("key")
+                if keys is None or not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= len(keys):
+                    return self._json({"error": t("that key is not on the pad any more")}, 400)
+                spec = keys[n - 1]
+                if spec:
+                    log.info("key %d pressed on '%s' (floating pad)", n, body["page"])
+                    threading.Thread(target=run_actions, args=(spec, popup.Ctx(svc)), daemon=True).start()
+                self._json({"ok": bool(spec)})
+            elif path == "/api/popup/show":  # "Try it" in Settings
+                svc.popup.show("test")
+                self._json(svc.popup.status())
             elif path == "/api/settings":
                 self._json({"rev": svc.update_settings(json.loads(self._body() or b"{}"))})
             elif path == "/api/obs":  # {host, port, password}; no password: keep the saved one
@@ -389,8 +431,8 @@ class _Handler(BaseHTTPRequestHandler):
             elif path == "/api/macro/record/cancel":
                 macro.recorder.cancel()
                 self._json(macro.recorder.status())
-            elif path == "/api/keys/capture":  # take the keyboard until one shortcut is pressed
-                self._json(keycapture.capture.start())
+            elif path == "/api/keys/capture":  # take the keyboard until one shortcut is pressed ({"mouse": true}: or a mouse button)
+                self._json(keycapture.capture.start(mouse=bool((json.loads(self._body() or b"{}") or {}).get("mouse"))))
             elif path == "/api/keys/capture/cancel":
                 self._json(keycapture.capture.cancel())
             elif path == "/api/macro/stop-all":

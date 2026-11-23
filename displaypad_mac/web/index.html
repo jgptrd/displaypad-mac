@@ -498,8 +498,17 @@ dialog.crop-dlg p.hint { margin: 0 0 10px; }
 .field-line code { flex: 1; padding: 6px 8px; }
 .kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; }
-.ok-t { color: var(--ok); } .bad-t { color: var(--danger); }
+.ok-t { color: var(--ok); } .bad-t { color: var(--danger); } .warn-t { color: var(--warn-text); }
 a { color: var(--accent); }
+/* In the DisplayPad app the page is the whole window: the header is its title bar, with the
+   window buttons at its left (the app sets html.in-app, and html.fullscreen without them). */
+html.in-app header { height: 40px; box-sizing: border-box; padding: 0 12px 0 84px; gap: 10px; cursor: default;
+  -webkit-user-select: none; user-select: none; }
+html.in-app.fullscreen header { padding-left: 16px; }
+html.in-app header button { padding-top: 3px; padding-bottom: 3px; }
+html.in-app header .seg button { padding-top: 2px; padding-bottom: 2px; }
+html.in-app header .brand { font-size: 15px; }
+html.in-app aside.card { top: 54px; max-height: calc(100vh - 72px); }
 </style>
 </head>
 <body>
@@ -777,6 +786,22 @@ const STRINGS = {
     obs_replay_hint: "The replay buffer must be running in OBS.",
     obs_checking: "Asking OBS…", obs_ok: "Connected to OBS {v}.", obs_retry: "Try again", obs_open_set: "OBS settings",
     set_obs: "OBS",
+    set_popup: "Floating pad",
+    popup_intro: "A DisplayPad on the screen, for when the pad is not at hand or not connected: a shortcut brings it up at the mouse, and clicking a key runs it and puts it away.",
+    popup_enable: "Turn on the floating pad",
+    popup_trigger: "Shortcut",
+    popup_trigger_hint: "A mouse button (the middle click or a side button) or a key, with ⌘, ⌥, ⌃ or ⇧. Click Record, then do it.",
+    popup_default: "Use the default", popup_try: "Show it now",
+    popup_use_hint: "In the floating pad, click a key or press 1–9, 0, - and = for keys 1–12. ⌫ goes back, Esc closes it.",
+    popup_ready: "Ready: {trigger} brings it up in any app.",
+    popup_starting: "Starting the DisplayPad app…",
+    popup_missing: "The DisplayPad app was not found. Run install.sh again; it needs the Xcode Command Line Tools (xcode-select --install).",
+    popup_listen: "Without Accessibility for DisplayPad, the click also reaches the app under the mouse (⌘ + middle click opens a link in a new tab). Allow it in System Settings → Privacy & Security → Accessibility.",
+    popup_mouse_error: "macOS did not let DisplayPad watch the mouse buttons. Allow Accessibility for DisplayPad, or use a keyboard shortcut.",
+    popup_taken: "Another app already uses this shortcut. Record another one.",
+    popup_key_error: "macOS did not accept this shortcut (error {code}). Record another one.",
+    popup_off: "Off. The DisplayPad app closes with its window.",
+    btn_middle_click: "Middle click", btn_mouse4: "Mouse button 4 (back)", btn_mouse5: "Mouse button 5 (forward)",
     obs_set_help: "Lets keys control OBS directly, even while it is in the background: the OBS Studio action and the ready-made OBS page. In OBS, choose Tools → WebSocket Server Settings, tick Enable WebSocket server, then click Show Connect Info and copy the server password here.",
     obs_host: "Computer", obs_port: "Port", obs_password: "Password",
     obs_host_hint: "127.0.0.1 is this Mac. OBS uses port 4455 unless you changed it.",
@@ -1057,6 +1082,22 @@ const STRINGS = {
     obs_replay_hint: "El búfer de repetición debe estar en marcha en OBS.",
     obs_checking: "Consultando a OBS…", obs_ok: "Conectado a OBS {v}.", obs_retry: "Reintentar", obs_open_set: "Ajustes de OBS",
     set_obs: "OBS",
+    set_popup: "Pad flotante",
+    popup_intro: "Un DisplayPad en la pantalla, para cuando el pad no está a mano o no está conectado: un atajo lo abre junto al mouse, y al hacer clic en una tecla la ejecuta y se cierra.",
+    popup_enable: "Activar el pad flotante",
+    popup_trigger: "Atajo",
+    popup_trigger_hint: "Un botón del mouse (el clic central o un botón lateral) o una tecla, con ⌘, ⌥, ⌃ o ⇧. Haz clic en Grabar y luego hazlo.",
+    popup_default: "Usar el predeterminado", popup_try: "Mostrarlo ahora",
+    popup_use_hint: "En el pad flotante, haz clic en una tecla o pulsa 1–9, 0, - e = para las teclas 1–12. ⌫ vuelve atrás y Esc lo cierra.",
+    popup_ready: "Listo: {trigger} lo abre en cualquier app.",
+    popup_starting: "Abriendo la app DisplayPad…",
+    popup_missing: "No se encontró la app DisplayPad. Vuelve a ejecutar install.sh; necesita las Command Line Tools de Xcode (xcode-select --install).",
+    popup_listen: "Sin la Accesibilidad para DisplayPad, el clic también llega a la app bajo el mouse (⌘ + clic central abre un enlace en otra pestaña). Permítela en Ajustes del Sistema → Privacidad y seguridad → Accesibilidad.",
+    popup_mouse_error: "macOS no dejó que DisplayPad vea los botones del mouse. Permite la Accesibilidad para DisplayPad, o usa un atajo de teclado.",
+    popup_taken: "Otra app ya usa este atajo. Graba otro.",
+    popup_key_error: "macOS no aceptó este atajo (error {code}). Graba otro.",
+    popup_off: "Desactivado. La app DisplayPad se cierra con su ventana.",
+    btn_middle_click: "Clic central", btn_mouse4: "Botón 4 del mouse (atrás)", btn_mouse5: "Botón 5 del mouse (adelante)",
     obs_set_help: "Permite que las teclas controlen OBS directamente, aunque esté en segundo plano: la acción OBS Studio y la página lista de OBS. En OBS, elige Herramientas → Ajustes del servidor WebSocket, marca Habilitar servidor WebSocket, pulsa Mostrar información de conexión y copia aquí la contraseña del servidor.",
     obs_host: "Equipo", obs_port: "Puerto", obs_password: "Contraseña",
     obs_host_hint: "127.0.0.1 es este Mac. OBS usa el puerto 4455 salvo que lo hayas cambiado.",
@@ -1273,6 +1314,8 @@ const MOD_ALIAS = { command: "cmd", "⌘": "cmd", lcmd: "cmd", rcommand: "rcmd",
   control: "ctrl", "⌃": "ctrl", lctrl: "ctrl", rcontrol: "rctrl", option: "alt", opt: "alt", "⌥": "alt", lalt: "alt",
   loption: "alt", roption: "ralt", ropt: "ralt" };
 const MOD_SYM = { cmd: "⌘", shift: "⇧", ctrl: "⌃", alt: "⌥" };
+const MOUSE_BTNS = ["middle_click", "mouse4", "mouse5"]; // the floating pad's trigger can be one
+const MOUSE_OF = { 1: "middle_click", 3: "mouse4", 4: "mouse5" }; // MouseEvent.button
 const modOf = (p) => { const m = MOD_ALIAS[p] || p; return MOD_ORDER.includes(m) ? m : null; };
 const sortMods = (mods) => [...new Set(mods)].sort((a, b) => MOD_ORDER.indexOf(a) - MOD_ORDER.indexOf(b));
 const PRETTY = { return: "↩", enter: "↩", tab: "⇥", delete: "⌫", backspace: "⌫", forwarddelete: "⌦", esc: "esc", escape: "esc",
@@ -1287,6 +1330,7 @@ function pretty(p, alone = false) { // one part of a shortcut, for people; alone
     return right ? t("side_right", { k: sym }) : alone ? t("side_left", { k: sym }) : sym;
   }
   if (p === "space") return t("key_space");
+  if (MOUSE_BTNS.includes(p)) return t("btn_" + p);
   if (/^kp/.test(p)) return t("kp") + " " + (KP[p.slice(2)] ?? p.slice(2));
   return PRETTY[p] || p.toUpperCase();
 }
@@ -2912,20 +2956,29 @@ function onRecUp(e) {
   r.down.delete(k);
   if (!r.down.size && r.mods.length) finishRec(sortMods(r.mods).join("+")); // modifiers on their own
 }
+function onRecMouse(e) { // the floating pad's trigger: modifiers and a mouse button
+  const name = MOUSE_OF[e.button];
+  if (!name) return;
+  e.preventDefault(); e.stopPropagation();
+  const mods = Object.entries(MOD_FLAG).filter(([, flag]) => e[flag]).map(([m]) => m);
+  finishRec([...sortMods(mods), name].join("+"));
+}
 function finishRec(combo) { const done = recording.done; stopRec(); done(combo); }
-function startRec(btn, done, live = () => {}) {
+function startRec(btn, done, live = () => {}, mouse = false) {
   stopRec();
-  recording = { btn, done, live, down: new Set(), mods: [] };
+  recording = { btn, done, live, mouse, down: new Set(), mods: [] };
   btn.classList.add("rec"); btn.textContent = t("recording");
   addEventListener("keydown", onRecDown, true);
   addEventListener("keyup", onRecUp, true);
   addEventListener("blur", stopRec);
+  if (mouse) addEventListener("mousedown", onRecMouse, true), addEventListener("auxclick", noAux, true);
   systemRec(recording);
 }
+const noAux = e => { if (MOUSE_OF[e.button]) e.preventDefault(); };
 async function systemRec(r) {
   const sleep = (ms) => new Promise(res => setTimeout(res, ms));
   let st;
-  try { st = await postJSON("/api/keys/capture", {}); } catch { return; } // an older service: the page alone
+  try { st = await postJSON("/api/keys/capture", r.mouse ? { mouse: true } : {}); } catch { return; } // an older service: the page alone
   if (recording !== r) { if (st.state === "listening") postJSON("/api/keys/capture/cancel", {}).catch(() => {}); return; }
   if (st.state !== "listening") return toast(t("rec_no_access"));
   r.system = true;
@@ -2948,6 +3001,8 @@ function stopRec() {
   removeEventListener("keydown", onRecDown, true);
   removeEventListener("keyup", onRecUp, true);
   removeEventListener("blur", stopRec);
+  removeEventListener("mousedown", onRecMouse, true);
+  removeEventListener("auxclick", noAux, true);
   if (recording.system) postJSON("/api/keys/capture/cancel", {}).catch(() => {});
   const { btn, live } = recording;
   recording = null;
@@ -3360,7 +3415,7 @@ function renderStatus(down = false) {
   if (down) { c.className = "pill bad"; c.textContent = t("svc_down"); }
   else if (status.connected) { c.className = "pill ok"; c.textContent = t("connected", { page: idTitle(status.page) }); }
   else { c.className = "pill bad"; c.textContent = t("disconnected"); }
-  if (view === "settings") renderAbout(down);
+  if (view === "settings") { renderAbout(down); paintPopup(); }
   const box = $("#banners");
   const sig = down ? "down" : JSON.stringify([LANG, status.input_monitoring, status.accessibility && 1, usesAccess(), status.config_error, status.macros_playing]);
   if (sig === renderStatus.sig) return;
@@ -3415,6 +3470,15 @@ function applyTheme() {
   const th = cfg?.theme;
   if (th === "light" || th === "dark") document.documentElement.dataset.theme = th;
   else delete document.documentElement.dataset.theme;
+  toApp({ theme: th === "light" || th === "dark" ? th : "auto" }); // the window buttons follow
+}
+// In the DisplayPad app (not a browser): the header moves the window, like a title bar.
+function toApp(msg) { try { window.webkit?.messageHandlers?.dp?.postMessage(msg); } catch {} }
+if (document.documentElement.classList.contains("in-app")) {
+  const head = document.querySelector("header");
+  const bare = e => e.button === 0 && !e.target.closest("button, input, select, textarea, a, [contenteditable]");
+  head.addEventListener("mousedown", e => { if (bare(e) && e.detail === 1) toApp({ drag: 1 }); });
+  head.addEventListener("dblclick", e => { if (bare(e)) toApp({ zoom: 1 }); });
 }
 function setLang(lang) {
   LANG = lang === "es" ? "es" : "en";
@@ -3433,7 +3497,7 @@ async function setSetting(patch) {
   busy++;
   try {
     const res = await postJSON("/api/settings", patch);
-    const apply = (o) => { for (const [k, v] of Object.entries(patch)) o[k] = k === "mcp" ? { ...(o.mcp || {}), ...v } : v; return o; };
+    const apply = (o) => { for (const [k, v] of Object.entries(patch)) o[k] = k === "mcp" || k === "popup" ? { ...(o[k] || {}), ...v } : v; return o; };
     apply(cfg); saved = JSON.stringify(apply(JSON.parse(saved))); rev = res.rev || rev;
     if ("language" in patch) { setLang(patch.language); renderAll(); }
     if ("theme" in patch) applyTheme();
@@ -3524,8 +3588,48 @@ async function renderSettings(refresh = false) {
     h("p", { class: "hint", style: "margin:0", text: t("about_ai") }),
     h("p", { style: "margin:0" }, h("a", { href: REPO_URL, target: "_blank", rel: "noopener", text: t("about_source") })));
 
-  $("#settings").replaceChildren(general, pad, await obsCard(refresh), ai, about);
+  $("#settings").replaceChildren(general, pad, popupCard(), await obsCard(refresh), ai, about);
   renderAbout();
+  paintPopup();
+}
+const POPUP_DEFAULT = "cmd+middle_click";
+const popupSet = () => ({ enabled: true, trigger: POPUP_DEFAULT, ...(cfg.popup || {}) });
+function popupCard() { // the floating pad: on or off, its shortcut, and whether it works
+  const p = popupSet();
+  const kbd = h("span", { class: "kbd" }, comboChips(p.trigger));
+  const use = trigger => setSetting({ popup: { trigger } }).then(ok => { renderSettings(); if (ok) setTimeout(paintPopup, 900); });
+  const rec = h("button", { type: "button", class: "small", text: t("record"), disabled: !p.enabled });
+  rec.onclick = () => recording ? stopRec() : startRec(rec, use, live => kbd.replaceChildren(...comboChips(live ?? p.trigger)), true);
+  return h("div", { class: "card stack" }, h("h2", { text: t("set_popup") }),
+    h("p", { class: "hint", style: "margin:0", text: t("popup_intro") }),
+    h("label", { class: "check" }, h("input", { type: "checkbox", checked: p.enabled,
+      onchange: e => setSetting({ popup: { enabled: e.target.checked } }).then(() => { renderSettings(); setTimeout(paintPopup, 900); }) }),
+      h("b", { text: t("popup_enable") })),
+    h("div", {}, h("span", { class: "lbl", text: t("popup_trigger") }),
+      h("div", { class: "field-line", style: "flex-wrap:wrap" }, kbd, rec,
+        p.trigger !== POPUP_DEFAULT ? h("button", { type: "button", class: "small", text: t("popup_default"), disabled: !p.enabled,
+          onclick: () => use(POPUP_DEFAULT) }) : null),
+      h("small", { text: t("popup_trigger_hint") })),
+    h("p", { id: "popup-state", style: "margin:0" }),
+    h("div", {}, h("button", { type: "button", text: t("popup_try"), disabled: !p.enabled,
+      onclick: () => postJSON("/api/popup/show", {}).catch(e => toast(e.message)) })),
+    h("small", { text: t("popup_use_hint") }));
+}
+function paintPopup() { // the line under the shortcut, from the service's status
+  const el = $("#popup-state");
+  if (!el) return;
+  const p = popupSet(), st = status.popup || {};
+  const said = (cls, text) => { el.className = cls; el.textContent = text; };
+  const mouse = MOUSE_BTNS.some(b => p.trigger.split("+").includes(b));
+  if (!p.enabled) return said("hint", t("popup_off"));
+  if (st.app_missing && !st.app) return said("bad-t", "✗ " + t("popup_missing"));
+  if (mouse && st.mouse === "error") return said("bad-t", "✗ " + t("popup_mouse_error"));
+  if (!mouse && st.hotkey === "taken") return said("bad-t", "✗ " + t("popup_taken"));
+  if (!mouse && /^error/.test(st.hotkey || "")) return said("bad-t", "✗ " + t("popup_key_error", { code: st.hotkey.slice(5) }));
+  if (!st.app) return said("hint", t("popup_starting"));
+  if (mouse && st.mouse === "listen") return said("warn-t", "⚠︎ " + t("popup_listen"));
+  const parts = p.trigger.split("+");
+  said("ok-t", "✓ " + t("popup_ready", { trigger: parts.map(x => pretty(x)).join(" ") }));
 }
 let obsSet = null; // the OBS connection (no password: only whether one is saved)
 async function obsCard(refresh) {
