@@ -35,7 +35,8 @@ and an optional **MCP server**, so an AI assistant can help you set up your keys
 - **Pages that open with apps (profiles):** link a page to apps and the pad switches to it
   by itself, either while the app is open or while it is in front, and goes back when the
   app is gone.
-- **Actions:** open an app, URL or folder; keyboard shortcuts; type text; play/pause,
+- **Actions:** open an app, URL or folder, and a website in the browser you pick, in a
+  new tab or window, or back in the tab where it is already open; keyboard shortcuts; type text; play/pause,
   volume and other media keys; play sounds; shell commands; AppleScript; change page; brightness of the
   Mac's screens (built-in and external over DDC/CI) and of the pad; pauses between actions.
   Several actions per key run in order.
@@ -183,6 +184,15 @@ Open it with the **DisplayPad** app (Applications, Launchpad or Spotlight), with
   **Hold the keys down while the pad key is held** is for apps
   that react to a held key, like push-to-talk dictation. **▶ Test** runs the actions and shows the output or error of shell commands and
   AppleScript.
+- **Websites:** when an **Open** action has a web address, you can choose the **Browser**
+  (the Mac's default or any browser installed), open it in **A new tab** (the default) or
+  **A new window**, and tick **If it's already open, go to its tab**. With that on, a key
+  for `https://web.whatsapp.com` brings back the WhatsApp tab you already have instead of
+  opening a second one: a tab counts when its address starts with the key's, whatever
+  comes after it, ignoring `http`/`https` and `www.`. Safari, Chrome, Edge, Brave and
+  Vivaldi can do all of it; other browsers (Firefox, Arc, Opera) open the address like any
+  link. The first time, macOS asks whether DisplayPad may control the browser. Typing a
+  bare address like `web.whatsapp.com` adds `https://` for you.
 - **Macros:** add a **Macro (keyboard and mouse)** action and press **● Record…**. Choose
   what to record (the keyboard, mouse clicks, drags and scrolling, and pointer moves if
   you need them) and press **Start recording**: you have 3 seconds to switch to your app.
@@ -287,6 +297,7 @@ The server only listens on this Mac, so assistants that run in the cloud and can
 | `get_obs_info` | Whether OBS can be reached, with its scenes and audio sources |
 | `update_settings` | Brightness, press feedback, language, appearance, start page |
 | `list_apps` | Installed apps, for "open" actions and pages that open with apps |
+| `list_browsers` | The browsers on this Mac and the default one, for "open" actions with a web address |
 | `upload_image` | Add a picture or animation from a file or base64 |
 | `upload_sound`, `list_sounds` | Add a sound for sound keys, or list the ones added and the Mac's own |
 | `preview_page` | Picture of a page as the pad draws it, live keys included |
@@ -509,7 +520,7 @@ needs no extra permission for it.
 
 | `type` | Fields | Example |
 |---|---|---|
-| `open` | `target`: app, URL or folder | `"Microsoft Excel"`, `"https://..."`, `"~/Documents"` |
+| `open` | `target`: app, URL or folder. For web addresses: `browser` (an app name; default: the Mac's default browser), `new`: `"tab"` (default) or `"window"`, `reuse_tab`: `true` goes to the tab already showing it | `"Microsoft Excel"`, `"~/Documents"`, `{"type": "open", "target": "https://web.whatsapp.com", "browser": "Google Chrome", "reuse_tab": true}` |
 | `shortcut` | `keys`; `hold`: `true` keeps them down while the pad key is held | `"cmd+shift+4"`, `"f5"`, `"rcmd"`, `"ctrl+rshift"` |
 | `text` | `text` (`\n` presses Return) | `"Best regards,\n"` |
 | `media` | `key` | `play_pause`, `next`, `previous`, `volume_up`, `volume_down`, `mute`, `brightness_up`, `brightness_down` |
@@ -618,6 +629,11 @@ cd ~/Library/Application\ Support/DisplayPadMac
 - **OBS keys do nothing:** **Settings → OBS → Test connection** says why. OBS must be
   open with **Tools → WebSocket Server Settings → Enable WebSocket server** on, and the
   password must match the one in **Show Connect Info**.
+- **A website key opens a new tab instead of going to the open one:** the **Try it**
+  button under the action says why. Usually macOS asked whether DisplayPad may control the
+  browser and it was refused: allow it in **System Settings → Privacy & Security →
+  Automation**. The key only looks in the browser it opens (the default one unless you
+  picked another), and the tab's address must start with the key's.
 - **A "What is playing" key says to allow it in Settings:** macOS asked whether
   DisplayPad may control Music or Spotify and it was refused. Allow it in **System
   Settings → Privacy & Security → Automation**.

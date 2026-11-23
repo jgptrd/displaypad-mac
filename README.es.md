@@ -37,7 +37,8 @@ configurar tus teclas.
 - **Páginas que se abren con apps (perfiles):** vincula una página a apps y el pad cambia
   a ella solo, mientras la app está abierta o mientras está al frente, y vuelve cuando la
   app ya no está.
-- **Acciones:** abrir una app, web o carpeta; atajos de teclado; escribir texto;
+- **Acciones:** abrir una app, web o carpeta, y una web en el navegador que elijas, en una
+  pestaña o ventana nueva, o volver a la pestaña donde ya está abierta; atajos de teclado; escribir texto;
   reproducir/pausar, volumen y otras teclas multimedia; reproducir sonidos; comandos de terminal; AppleScript;
   cambiar de página; brillo de las pantallas del Mac (la integrada y las externas por
   DDC/CI) y del pad; pausas entre acciones. Varias acciones por tecla, en orden.
@@ -195,6 +196,16 @@ El idioma por defecto es inglés: cámbialo a español en **Settings → Languag
   mantienes la tecla del pad** sirve para apps que reaccionan a una tecla mantenida, como
   el dictado de pulsar para hablar. **▶ Probar** ejecuta las acciones y muestra la salida o el error de los comandos
   de terminal y AppleScript.
+- **Webs:** cuando una acción **Abrir** tiene una dirección web, puedes elegir el
+  **Navegador** (el predeterminado del Mac o cualquiera instalado), abrirla en **Una pestaña
+  nueva** (lo normal) o **Una ventana nueva**, y marcar **Si ya está abierta, ir a su
+  pestaña**. Con eso, una tecla para `https://web.whatsapp.com` trae la pestaña de WhatsApp
+  que ya tienes en vez de abrir otra: cuenta una pestaña cuya dirección empiece por la de la
+  tecla, con lo que siga después, sin importar `http`/`https` ni `www.`. Safari, Chrome,
+  Edge, Brave y Vivaldi pueden hacerlo todo; los demás navegadores (Firefox, Arc, Opera)
+  abren la dirección como cualquier enlace. La primera vez, macOS pregunta si DisplayPad
+  puede controlar el navegador. Si escribes una dirección sin más, como
+  `web.whatsapp.com`, se le añade `https://`.
 - **Macros:** agrega una acción **Macro (teclado y mouse)** y pulsa **● Grabar…**. Elige
   qué grabar (el teclado; los clics, arrastres y desplazamiento del mouse; y el movimiento
   del puntero si lo necesitas) y pulsa **Empezar a grabar**: tienes 3 segundos para
@@ -304,6 +315,7 @@ pueden llegar a `127.0.0.1` no podrán conectarse.
 | `get_obs_info` | Si OBS responde, con sus escenas y fuentes de audio |
 | `update_settings` | Brillo, oscurecer al pulsar, idioma, apariencia, página inicial |
 | `list_apps` | Apps instaladas, para las acciones «abrir» y las páginas que se abren con apps |
+| `list_browsers` | Los navegadores del Mac y el predeterminado, para las acciones «abrir» con una dirección web |
 | `upload_image` | Agregar una imagen o animación desde un archivo o base64 |
 | `upload_sound`, `list_sounds` | Agregar un sonido para teclas de sonido, o ver los ya agregados y los del Mac |
 | `preview_page` | Imagen de una página tal como la dibuja el pad, con las teclas en vivo |
@@ -535,7 +547,7 @@ no necesita ningún permiso más para ello.
 
 | `type` | Campos | Ejemplo |
 |---|---|---|
-| `open` | `target`: app, URL o carpeta | `"Microsoft Excel"`, `"https://..."`, `"~/Documents"` |
+| `open` | `target`: app, URL o carpeta. Para direcciones web: `browser` (el nombre de la app; por defecto, el navegador predeterminado), `new`: `"tab"` (por defecto) o `"window"`, `reuse_tab`: `true` va a la pestaña que ya la muestra | `"Microsoft Excel"`, `"~/Documents"`, `{"type": "open", "target": "https://web.whatsapp.com", "browser": "Google Chrome", "reuse_tab": true}` |
 | `shortcut` | `keys`; `hold`: `true` las mantiene pulsadas mientras mantienes la tecla del pad | `"cmd+shift+4"`, `"f5"`, `"rcmd"`, `"ctrl+rshift"` |
 | `text` | `text` (`\n` pulsa Enter) | `"Saludos cordiales,\n"` |
 | `media` | `key` | `play_pause`, `next`, `previous`, `volume_up`, `volume_down`, `mute`, `brightness_up`, `brightness_down` |
@@ -647,6 +659,12 @@ cd ~/Library/Application\ Support/DisplayPadMac
   OBS debe estar abierto con **Herramientas → Ajustes del servidor WebSocket → Habilitar
   servidor WebSocket** activado, y la contraseña debe ser la de **Mostrar información de
   conexión**.
+- **Una tecla de una web abre una pestaña nueva en vez de ir a la que está abierta:** el
+  botón **Probar** de la acción dice por qué. Casi siempre macOS preguntó si DisplayPad
+  puede controlar el navegador y se rechazó: permítelo en **Ajustes del Sistema →
+  Privacidad y seguridad → Automatización**. La tecla solo busca en el navegador que abre
+  (el predeterminado salvo que elijas otro), y la dirección de la pestaña debe empezar por
+  la de la tecla.
 - **Una tecla «Lo que suena» dice que lo permitas en Ajustes:** macOS preguntó si
   DisplayPad puede controlar Música o Spotify y se rechazó. Permítelo en **Ajustes del
   Sistema → Privacidad y seguridad → Automatización**.

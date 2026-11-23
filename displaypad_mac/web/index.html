@@ -391,6 +391,11 @@ aside.card { position: sticky; top: 72px; max-height: calc(100vh - 90px); overfl
 .a-head { display: flex; gap: 6px; align-items: center; }
 .a-head .num { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--chip); font-size: 12px; font-weight: 600; }
 .a-head select { flex: 1; }
+.web > * + * { margin-top: 8px; }
+.web[hidden] { display: none; }
+.web-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.web-row > label { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.web-row select { width: 100%; }
 .a-body { margin-top: 8px; }
 .a-body > * + * { margin-top: 8px; }
 .a-body small, .stack small { display: block; }
@@ -740,6 +745,12 @@ const STRINGS = {
     m_volume_down: "Volume down", m_mute: "Mute", key_space: "space",
     needs_access: "Needs the Accessibility permission (see the notice above).",
     open_hint: "Type an app name (suggestions appear), a web address or a folder/file.",
+    web_browser: "Browser", web_default: "Default browser ({name})", web_default_unknown: "Default browser",
+    web_missing: "{name} (not installed)", web_new: "Open it in", web_tab: "A new tab", web_window: "A new window",
+    web_reuse: "If it's already open, go to its tab",
+    web_reuse_hint: "Looks for a tab whose address starts with this one (for https://web.whatsapp.com, any WhatsApp tab) and brings it to the front instead of opening the site again.",
+    web_cant: "{name} can't be asked for its tabs or a new window, so it opens the address the way it opens links. Safari, Chrome, Edge, Brave and Vivaldi can do both.",
+    web_perm: "The first time, macOS asks whether DisplayPad may control {name}: choose Allow.",
     record: "Record", recording: "Press the keys… (click to cancel)",
     shortcut_hint: "Press “Record”, then a combination (⌘⇧4) or a single key, even a modifier on its own like Right ⌘. Left and right keys are kept apart. While it records, macOS and the other apps don't react to the keys, so system shortcuts (⌘⇧4, ⌘Space, ⌘Tab, ⌘Q) are recorded whole. “Keyboard…” lets you pick the keys with the mouse.",
     rec_no_access: "To record shortcuts macOS uses (⌘⇧4, ⌘Space…), allow Accessibility for DisplayPad. For now only the keys this page receives are recorded.",
@@ -1014,6 +1025,12 @@ const STRINGS = {
     m_volume_down: "Bajar volumen", m_mute: "Silenciar", key_space: "espacio",
     needs_access: "Necesita el permiso de Accesibilidad (ver aviso arriba).",
     open_hint: "Escribe el nombre de una app (aparecen sugerencias), una dirección web o una carpeta/archivo.",
+    web_browser: "Navegador", web_default: "Navegador predeterminado ({name})", web_default_unknown: "Navegador predeterminado",
+    web_missing: "{name} (no está instalado)", web_new: "Abrirla en", web_tab: "Una pestaña nueva", web_window: "Una ventana nueva",
+    web_reuse: "Si ya está abierta, ir a su pestaña",
+    web_reuse_hint: "Busca una pestaña cuya dirección empiece por esta (para https://web.whatsapp.com, cualquier pestaña de WhatsApp) y la trae al frente en vez de abrir el sitio otra vez.",
+    web_cant: "A {name} no se le pueden pedir sus pestañas ni una ventana nueva, así que abre la dirección como abre los enlaces. Safari, Chrome, Edge, Brave y Vivaldi pueden hacer ambas cosas.",
+    web_perm: "La primera vez, macOS pregunta si DisplayPad puede controlar {name}: elige Permitir.",
     record: "Grabar", recording: "Pulsa las teclas… (clic para cancelar)",
     shortcut_hint: "Pulsa «Grabar» y luego una combinación (⌘⇧4) o una sola tecla, incluso un modificador solo como ⌘ derecho. Las teclas izquierda y derecha se distinguen. Mientras graba, macOS y las demás apps no reaccionan a las teclas, así que los atajos del sistema (⌘⇧4, ⌘Espacio, ⌘Tab, ⌘Q) se graban completos. Con «Teclado…» eliges las teclas con el mouse.",
     rec_no_access: "Para grabar atajos que usa macOS (⌘⇧4, ⌘Espacio…), permite la Accesibilidad para DisplayPad. Por ahora solo se graban las teclas que recibe esta página.",
@@ -2570,10 +2587,17 @@ function fields(a) {
     ? h("small", { style: "color:var(--danger)", text: t("needs_access") }) : null;
   switch (a.type) {
     case "open": {
-      const id = "apps-" + Math.random().toString(36).slice(2);
-      return [h("input", { value: a.target || "", list: id, placeholder: "Safari · https://… · ~/Documents", oninput: upd("target") }),
+      const id = "apps-" + Math.random().toString(36).slice(2), web = webFields(a);
+      return [h("input", { value: a.target || "", list: id, placeholder: "Safari · https://… · ~/Documents",
+          oninput: e => { a.target = e.target.value; web.show(); changed(false); },
+          onchange: e => { // a bare site gets https://; apps, files and other links drop the browser options
+            const v = e.target.value.trim();
+            if (/^[\w-]+(\.[\w-]+)*\.[a-z]{2,}(:\d+)?([/?#]\S*)?$/i.test(v) && !/\.app$/i.test(v) && !apps.includes(v)) e.target.value = a.target = "https://" + v;
+            if (!isWeb(a.target) && WEB_OPTS.some(f => f in a)) { for (const f of WEB_OPTS) delete a[f]; web.reset(); }
+            web.show(); changed(false);
+          } }),
         h("datalist", { id }, apps.map(n => h("option", { value: n }))),
-        hint(t("open_hint"))];
+        hint(t("open_hint")), web.box];
     }
     case "shortcut": {
       const inp = h("input", { class: "mono", value: a.keys || "", placeholder: "cmd+shift+4 · rcmd · f13", oninput: e => { a.keys = e.target.value.trim().toLowerCase(); chips(); changed(false); } });
@@ -2627,6 +2651,50 @@ function fields(a) {
       return [hint(t("stop_hint"))];
   }
   return [];
+}
+
+// ---------------------------------------------------------------- web addresses (browsers.py)
+// Which browser opens the address, a tab or a window, and going back to a tab already open.
+const WEB_OPTS = ["browser", "new", "reuse_tab"];
+const isWeb = v => /^https?:\/\//i.test(String(v || "").trim());
+let browserCache = null;
+const browserList = () => browserCache || (browserCache = getJSON("/api/browsers").catch(() => ({ default: null, browsers: [] })));
+function webFields(a) {
+  let list = { default: null, browsers: [] };
+  const same = (x, y) => String(x || "").toLowerCase() === String(y || "").toLowerCase();
+  const info = h("small", { class: "hint" });
+  const note = () => { // what the chosen browser can do, and the Automation question
+    const name = a.browser || list.default?.name || "";
+    const b = a.browser ? list.browsers.find(x => same(x.name, a.browser)) : list.default;
+    info.textContent = !name || !(a.new === "window" || a.reuse_tab) ? "" : b && !b.tabs ? t("web_cant", { name }) : b ? t("web_perm", { name }) : "";
+    info.hidden = !info.textContent;
+  };
+  const bsel = h("select", { "aria-label": t("web_browser"), onchange: e => { if (e.target.value) a.browser = e.target.value; else delete a.browser; note(); changed(false); } },
+    h("option", { value: "", text: t("web_default_unknown") }));
+  const nsel = h("select", { "aria-label": t("web_new"), onchange: e => { if (e.target.value === "window") a.new = "window"; else delete a.new; note(); changed(false); } },
+    [["tab", t("web_tab")], ["window", t("web_window")]].map(([v, txt]) => h("option", { value: v, text: txt, selected: (a.new || "tab") === v })));
+  const reuse = h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!a.reuse_tab,
+    onchange: e => { if (e.target.checked) a.reuse_tab = true; else delete a.reuse_tab; note(); changed(false); } }), t("web_reuse"));
+  const tryIt = h("button", { type: "button", class: "small", text: t("fx_try"), onclick: async () => {
+    try { const [r] = await postJSON("/api/test", { spec: { actions: [a] }, pages: cfg.pages }); toast(r.ok ? "✓ " + (r.output || typeName(a.type)) : "✗ " + r.output); }
+    catch (e) { toast(e.message); }
+  } });
+  const box = h("div", { class: "web" },
+    h("div", { class: "web-row" }, h("label", {}, h("span", { class: "lbl", text: t("web_browser") }), bsel),
+      h("label", {}, h("span", { class: "lbl", text: t("web_new") }), nsel)),
+    reuse, h("small", { text: t("web_reuse_hint") }), info, h("div", {}, tryIt));
+  browserList().then(l => {
+    list = l;
+    const known = l.browsers.some(b => same(b.name, a.browser));
+    bsel.replaceChildren(...[h("option", { value: "", text: l.default ? t("web_default", { name: l.default.name }) : t("web_default_unknown"), selected: !a.browser }),
+      ...l.browsers.map(b => h("option", { value: b.name, text: b.name, selected: same(b.name, a.browser) })),
+      a.browser && !known ? h("option", { value: a.browser, text: t("web_missing", { name: a.browser }), selected: true }) : null].filter(Boolean));
+    note();
+  });
+  const show = () => { box.hidden = !isWeb(a.target); };
+  const reset = () => { bsel.value = ""; nsel.value = "tab"; reuse.querySelector("input").checked = false; note(); };
+  show(); note();
+  return { box, show, reset };
 }
 
 // ---------------------------------------------------------------- OBS (obs.py)

@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from . import anim, daemon, emojidata, i18n, keycapture, live, macos, macro, mcp, obs, presets, sound  # daemon: circular, used at call time only
+from . import anim, browsers, daemon, emojidata, i18n, keycapture, live, macos, macro, mcp, obs, presets, sound  # daemon: circular, used at call time only
 from .actions import test_actions
 from .i18n import t
 from .render import MAX_CORNER, effect_of, effect_preview, frame_durations, render_key
@@ -262,6 +262,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(st)
         elif path == "/api/apps":
             self._json(list_apps())
+        elif path == "/api/browsers":  # the browsers on this Mac and the default one, for "open" actions
+            self._json(browsers.installed(fresh=True))
         elif path == "/api/presets":  # ready-made pages for popular apps, in the page's language
             lang = parse_qs(urlparse(self.path).query).get("lang", ["en"])[0]
             self._json(presets.catalog("es" if lang == "es" else "en", list_apps()))

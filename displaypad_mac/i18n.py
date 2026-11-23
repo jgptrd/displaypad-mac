@@ -211,4 +211,19 @@ ES = {
     "playing {name} ({seconds} s)": "reproduciendo {name} ({seconds} s)",
     "stopped {name}": "se detuvo {name}",
     "stopped {n} sound(s)": "se detuvieron {n} sonido(s)",
+    # browsers.py: web addresses in a chosen browser
+    "browser must be the name of a browser app, such as Safari or Google Chrome":
+        "browser debe ser el nombre de un navegador, como Safari o Google Chrome",
+    "new must be tab or window": "new debe ser tab o window",
+    "reuse_tab must be true or false": "reuse_tab debe ser true o false",
+    "could not open {url}": "no se pudo abrir {url}",
+    "{browser} is not installed, so the default browser opened it":
+        "{browser} no está instalado, así que lo abrió el navegador predeterminado",
+    "{browser} can't be asked for its tabs or a new window, so it opened the address the way it opens links":
+        "a {browser} no se le pueden pedir sus pestañas ni una ventana nueva, así que abrió la dirección como abre los enlaces",
+    "went to the {browser} tab already showing it": "fue a la pestaña de {browser} que ya la mostraba",
+    "opened in a new {browser} window": "se abrió en una ventana nueva de {browser}",
+    "opened in {browser}": "se abrió en {browser}",
+    "to find open tabs or make windows, allow DisplayPad to control {browser} in System Settings > Privacy & Security > Automation":
+        "para encontrar pestañas abiertas o abrir ventanas, permite que DisplayPad controle {browser} en Ajustes del Sistema > Privacidad y seguridad > Automatización",
 }

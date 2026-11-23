@@ -24,7 +24,7 @@ import time
 import urllib.error
 import urllib.request
 
-from . import __version__, actions, appwatch, daemon, live, obs, presets, render, sound, web  # daemon/web: circular, used at call time only
+from . import __version__, actions, appwatch, browsers, daemon, live, obs, presets, render, sound, web  # daemon/web: circular, used at call time only
 
 log = logging.getLogger(__name__)
 
@@ -74,6 +74,7 @@ KEY FIELDS (all optional; a key with nothing is simply left out)
 
 ACTIONS
 - {"type": "open", "target": "Safari"}: an app name (see list_apps), a URL ("https://...", "mailto:...", "zoommtg://...") or a file/folder path ("~/Documents").
+  For http(s) addresses, optional: "browser": a browser's app name from list_browsers (default: the Mac's default browser); "new": "tab" (default) or "window"; "reuse_tab": true goes to the tab that already shows the address instead of opening another (a tab matches when its address starts with the target's, ignoring http/https, "www." and "#...", so "https://web.whatsapp.com" finds any WhatsApp tab). Use reuse_tab for web apps people keep open (WhatsApp, Gmail, Slack, Teams). Safari and the Chromium browsers (Chrome, Edge, Brave, Vivaldi) can do new windows and reuse_tab; other browsers open the address as a link. The first time, macOS asks the user to let DisplayPad control the browser. Example: {"type": "open", "target": "https://web.whatsapp.com", "browser": "Google Chrome", "reuse_tab": true}.
 - {"type": "shortcut", "keys": "cmd+shift+4"}: modifiers and one key, a single key ("f13") or modifiers alone ("rcmd", "ctrl+rshift"). Modifiers: cmd, shift, ctrl, alt (or option), fn are the left keys; rcmd, rshift, rctrl, ralt are the right ones, for apps that listen to one side. Keys: a-z, 0-9, f1-f20, return, tab, space, delete, forwarddelete, esc, up, down, left, right, home, end, pageup, pagedown, help, section, eisu, kana, keypad kp0-kp9, kpdecimal, kpplus, kpminus, kpmultiply, kpdivide, kpequals, kpenter, kpclear, and - = [ ] \\ ; ' , . / `. Add "hold": true to keep the keys down while the pad key is held and let them go when it is released (push-to-talk and other apps that listen for a held key; at most 10 minutes); without it they are pressed and let go at once. Goes to the app in front.
 - {"type": "text", "text": "Best regards,\\n"}: typed where the cursor is (any Unicode; \\n presses Return).
 - {"type": "media", "key": "play_pause"}: play_pause, next, previous, volume_up, volume_down, mute, brightness_up, brightness_down.
@@ -100,7 +101,7 @@ GOOD PRACTICE
 - Short labels, one idea per key, related keys on the same page. Every extra page needs a way back (create_page puts a "back" key on key 1) and a key on another page that leads to it.
 - When 12 keys are not enough, a folder keeps related keys one press away and comes with its own Back key; it is simpler than a new page.
 - Dark, saturated backgrounds keep the white label readable.
-- For web apps, "open" with the URL is simpler than a chain of shortcuts.
+- For web apps, "open" with the URL is simpler than a chain of shortcuts; add "reuse_tab": true so a second press goes back to the tab.
 - For multi-step automations prefer one AppleScript or shell action over many shortcuts and delays. When the user wants to repeat what they do by hand, suggest recording a macro in the configurator; in macros you write, prefer keys and text steps over clicks at fixed positions, which break when a window moves.
 - test_actions on a macro waits 3 seconds first (time for the user to switch apps), then plays it once.
 - After changing keys, check them with preview_page."""
@@ -113,7 +114,10 @@ KEY = {"type": "integer", "minimum": 1, "maximum": 12,
 ACTION = {"type": "object", "required": ["type"], "description": "One action; see get_reference.",
           "properties": {"type": {"type": "string", "enum": ["open", "shortcut", "text", "media", "shell", "applescript",
                                                              "page", "screen_brightness", "brightness", "delay",
-                                                             "configurator", "macro", "obs", "sound", "stop_sounds"]}}}
+                                                             "configurator", "macro", "obs", "sound", "stop_sounds"]},
+                         "browser": {"type": "string", "description": "open with a web address: a browser from list_browsers."},
+                         "new": {"type": "string", "enum": ["tab", "window"], "description": "open with a web address: default tab."},
+                         "reuse_tab": {"type": "boolean", "description": "open with a web address: go to the tab already showing it."}}}
 KEY_SPEC = {
     "type": "object", "description": "How the key looks and what it does; see get_reference.",
     "properties": {
@@ -617,6 +621,12 @@ def list_apps(svc, a):
     return web.list_apps()
 
 
+def list_browsers(svc, a):
+    b = browsers.installed(fresh=True)
+    return {"default": b["default"]["name"] if b["default"] else None,
+            "browsers": [{"name": x["name"], "new_window_and_reuse_tab": x["tabs"]} for x in b["browsers"]]}
+
+
 def upload_image(svc, a):
     if a.get("file_path"):
         path = os.path.expanduser(a["file_path"])
@@ -789,6 +799,9 @@ TOOLS = [
           "scene, studio mode, and its audio sources and microphones, for \"obs\" actions.", read_only=True),
     _tool(list_apps, "List installed apps", "Names of the apps installed on this Mac, for \"open\" actions and link_page_to_apps.",
           read_only=True),
+    _tool(list_browsers, "List browsers",
+          "The web browsers on this Mac and the default one, for the \"browser\" of \"open\" actions with a web "
+          "address, and whether each can open new windows and find an open tab (reuse_tab).", read_only=True),
     _tool(upload_image, "Add a picture or animation",
           "Store a picture (PNG, JPG, WebP), an animated GIF/WebP or a Lottie animation (.json, .lottie, .tgs) "
           "for keys. Returns the path to use as a key's \"image\".",

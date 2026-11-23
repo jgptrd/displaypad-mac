@@ -1,6 +1,8 @@
 """Key actions. Each key has "action": {...} or "actions": [{...}, ...].
 
   {"type": "open", "target": "Safari" | "https://..." | "~/Documents"}
+  {"type": "open", "target": "https://...", "browser": "Google Chrome", "new": "tab|window", "reuse_tab": true}
+                                                           (browser options: see browsers.py)
   {"type": "shortcut", "keys": "cmd+shift+4"}                (also one key: "rcmd", "f13")
   {"type": "shortcut", "keys": "ralt", "hold": true}          (held while the pad key is held)
   {"type": "text", "text": "Hello\\n"}
@@ -24,7 +26,7 @@ import subprocess
 import threading
 import time
 
-from . import macos, macro, obs, screens, sound
+from . import browsers, macos, macro, obs, screens, sound
 from .i18n import t
 
 log = logging.getLogger(__name__)
@@ -51,6 +53,8 @@ def validate_action(action: dict, pages: dict) -> str:
     field = _REQUIRED[kind]
     if field and (field not in action or str(action[field]).strip() == ""):
         return t("the '{kind}' action is missing '{field}'", kind=kind, field=field)
+    if kind == "open":
+        return browsers.validate(action)
     if kind == "shortcut":
         try:
             macos.parse_shortcut(action["keys"])
@@ -89,7 +93,11 @@ def actions_of(spec: dict) -> list:
     return []
 
 
-def _open(target: str):
+def _open(action: dict) -> str:
+    target = action["target"].strip()
+    if browsers.is_web(target):  # the browser options are ignored for apps, files and other links
+        return browsers.open_url(target, str(action.get("browser") or "").strip(), action.get("new", "tab"),
+                                 bool(action.get("reuse_tab")))
     expanded = os.path.expanduser(target)
     if "://" in target or ":" in target.split("/")[0] or os.path.exists(expanded):
         cmd = ["open", expanded]
@@ -98,6 +106,7 @@ def _open(target: str):
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
     if r.returncode != 0:
         log.warning("open %s failed: %s", target, r.stderr.strip())
+    return ""
 
 
 def _background(cmd: list):
@@ -108,7 +117,7 @@ def run_action(action: dict, ctx, released=None):
     """released: a threading.Event set when the pad key is let go (for "hold" shortcuts)."""
     kind = action.get("type")
     if kind == "open":
-        _open(action["target"])
+        return _open(action)
     elif kind == "shortcut":
         if action.get("hold"):
             macos.press_shortcut(action["keys"], hold=released or threading.Event(),
@@ -191,6 +200,8 @@ def test_actions(spec: dict, ctx, pages: dict) -> list:
                 res = {"ok": True, "output": t("held down for 1 second")}
             elif kind == "obs":
                 res = {"ok": True, "output": obs.run(action, ctx.cfg["base_dir"])}
+            elif kind == "open":
+                res = {"ok": True, "output": run_action(action, ctx) or ""}
             elif kind == "sound":
                 path = sound.resolve(action["file"], ctx.cfg["base_dir"])
                 name = sound.name_of(path)
