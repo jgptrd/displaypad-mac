@@ -40,7 +40,7 @@ from typing import Dict, List, Optional
 
 from . import __version__, appwatch, i18n, keycapture, live, macos, macro, popup, sound, web
 from .actions import NEEDS_POST_EVENTS, actions_of, run_actions, validate_action
-from .driver import NUM_KEYS, DisplayPad, DisplayPadError, device_present
+from .driver import NUM_KEYS, DisplayPad, DisplayPadError, PadNotAnswering, device_present
 from .i18n import t
 from .render import (DEFAULT_CORNER, EFFECT_STEP, EFFECTS, MAX_CORNER, RING_STEPS, crop_of, effect_of,
                      frame_durations, render_key, to_bgr, validate_background, validate_effect)
@@ -50,6 +50,8 @@ log = logging.getLogger(__name__)
 APP_DIR = os.path.expanduser("~/Library/Application Support/DisplayPadMac")
 DEFAULT_CONFIG = os.path.join(APP_DIR, "config.json")
 WATCHDOG_SECONDS = 8
+RESET_AFTER = 2    # connects in a row the pad didn't answer before its USB port is reset
+REPLUG_HINT = "unplug the DisplayPad and plug it back in (straight into the Mac, not a hub)"
 THEMES = ("system", "light", "dark")
 SETTINGS = ("language", "theme", "brightness", "press_feedback", "corner_radius", "mcp", "popup")
 # Inside a folder, key 1 is always this one: it goes back to the page or folder that holds it.
@@ -696,6 +698,9 @@ class Service:
         self.popup.start()
         last_cfg_check = 0.0
         waiting_logged = False
+        failures = 0          # connects in a row the pad didn't answer
+        reset_done = False    # one USB reset until the pad connects again: more can wedge it
+        hint_logged = False
         while not self._stop.is_set():
             if self._reload.is_set() or time.monotonic() - last_cfg_check > 1:
                 self._reload.clear()
@@ -707,11 +712,16 @@ class Service:
                     if not waiting_logged:
                         log.info("waiting for the DisplayPad to be connected...")
                         waiting_logged = True
+                    if reset_done and not hint_logged:
+                        log.error("the DisplayPad did not come back after the USB reset: %s", REPLUG_HINT)
+                        hint_logged = True
+                    failures = 0
                     self._stop.wait(1.5)
                     continue
                 try:
                     self._connect()
-                    waiting_logged = False
+                    waiting_logged = hint_logged = reset_done = False
+                    failures = 0
                     log.info("DisplayPad ready")
                 except PermissionError as e:
                     log.error("%s", e)
@@ -720,6 +730,23 @@ class Service:
                 except Exception as e:
                     log.warning("connect failed: %s", e)
                     self.pad.close()
+                    # The pad is there but doesn't answer: its firmware is stuck, and only
+                    # a power cycle brings it back. Reset the USB port once instead of asking
+                    # the user to unplug it. Resets close together can leave the pad without
+                    # its HID interfaces, so if one doesn't help, ask for a replug. Other
+                    # errors, like macOS refusing access for a few seconds after a reset,
+                    # don't count.
+                    failures = failures + 1 if isinstance(e, PadNotAnswering) else 0
+                    if failures >= RESET_AFTER and not reset_done:
+                        reset_done = True
+                        log.warning("the DisplayPad is not answering; resetting its USB port")
+                        if self.pad.reset_usb():
+                            failures = 0
+                            self._stop.wait(3)  # it comes back as a new USB device
+                            continue
+                    if failures >= RESET_AFTER and reset_done and not hint_logged:
+                        log.error("the DisplayPad is still not answering: %s", REPLUG_HINT)
+                        hint_logged = True
                     self._stop.wait(2)
                 continue
             try:
