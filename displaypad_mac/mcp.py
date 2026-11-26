@@ -727,7 +727,8 @@ def _tool(fn, title, description, props=None, required=(), read_only=False, dest
 
 TOOLS = [
     _tool(get_status, "DisplayPad status",
-          "Whether the DisplayPad is connected, the page it shows, brightness, macOS permissions "
+          "Whether the DisplayPad is connected (pad_problem \"replug\": it is plugged in but stopped "
+          "answering, and the user must unplug it and plug it back in), the page it shows, brightness, macOS permissions "
           "(input_monitoring, accessibility), the floating pad (popup), the pages and the start page.", read_only=True),
     _tool(get_reference, "Configuration reference",
           "Every key field and action type with examples, plus layout tips. Read it before creating keys.",

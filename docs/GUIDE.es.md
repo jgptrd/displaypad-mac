@@ -644,12 +644,13 @@ cd ~/Library/Application\ Support/DisplayPadMac
 
 - **`Cannot open DisplayPad IF0: kIOReturnNotPermitted`** en el registro: falta el permiso
   de Monitoreo de entrada para Python.
-- **`SET_REPORT on IF0 failed: kIOReturnTimeout`** o **`did not answer the INIT
-  handshake`** en el registro: el firmware del pad se trabó (puede pasar tras muchos
-  intentos hechos antes de dar el permiso de Monitoreo de entrada). Tras dos intentos
-  fallidos el servicio reinicia el puerto USB del pad una vez por su cuenta, igual que
-  desconectarlo, y vuelve en unos segundos. Si luego el registro pide desconectarlo,
-  hazlo y conéctalo directamente al Mac, no a un hub.
+- **El configurador dice "El DisplayPad no responde: reconéctalo"** (en el registro:
+  *not answering* o *macOS could not set up the DisplayPad*): el pad está conectado, pero
+  su firmware dejó de responder al Mac. Puede pasar al encender el Mac, más a menudo
+  detrás de un hub USB, o tras muchos intentos de conexión hechos antes de dar el permiso
+  de Monitoreo de entrada. Desconecta el pad y vuelve a conectarlo, directamente al Mac
+  si puedes; el servicio lo detecta solo. Nada por software lo recupera: un reinicio USB
+  mantiene el pad encendido, y el firmware trabado ya no puede ni describirse ante macOS.
 - **Los atajos, el texto o las teclas multimedia no hacen nada:** falta el permiso de
   Accesibilidad para Python.
 - **Dejó de funcionar después de `brew upgrade`:** Homebrew cambió el binario de Python.

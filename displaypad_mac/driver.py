@@ -50,11 +50,28 @@ class DisplayPadError(Exception):
 
 
 class PadNotAnswering(DisplayPadError):
-    """The pad is there but its firmware doesn't answer: a USB reset brings it back."""
+    """The pad is on USB but its firmware doesn't answer. Only cutting its power
+    (unplugging it) brings it back: a USB port reset keeps it powered, and the
+    frozen firmware then can't even send its descriptors, which leaves it worse."""
 
 
 def device_present() -> bool:
     return any(d.get("interface_number") == 3 for d in hid.enumerate(VID, PID))
+
+
+def on_usb() -> bool:
+    """The pad is plugged in, even if macOS couldn't set it up.
+
+    When the firmware doesn't answer macOS while it is being set up (seen at
+    startup, behind a hub), macOS gives up on the command interface (IF3): the
+    pad is on USB but device_present() stays False until it is unplugged.
+    """
+    if hid.enumerate(VID, PID):  # the keyboard interface (IF0) made it
+        return True
+    try:
+        return usb.core.find(idVendor=VID, idProduct=PID, backend=_libusb_backend()) is not None
+    except Exception:
+        return False
 
 
 def _libusb_backend():
@@ -153,34 +170,6 @@ class DisplayPad:
                 except Exception:
                     pass
                 self.kbd = None
-
-    def reset_usb(self) -> bool:
-        """Reset the pad's USB port: the same as unplugging it and plugging it back in.
-
-        The firmware can get stuck so that it no longer answers the IF0 SET_REPORT
-        (kIOReturnTimeout) or the INIT handshake, for example after many attempts
-        made before Input Monitoring was granted. Only a power cycle or a port reset
-        brings it back. Needs no root. Returns True if the reset was sent; the pad
-        then re-enumerates, which takes a second or two.
-        """
-        with self.lock:
-            self.close()
-            dev = usb.core.find(idVendor=VID, idProduct=PID, backend=_libusb_backend())
-            if dev is None:
-                return False
-            try:
-                dev.reset()
-            except usb.core.USBError as e:
-                # libusb reports NOT_FOUND once the device re-enumerates: the reset worked
-                if getattr(e, "backend_error_code", None) != -5:
-                    log.warning("USB reset failed: %s", e)
-                    return False
-            finally:
-                try:
-                    usb.util.dispose_resources(dev)
-                except Exception:
-                    pass
-            return True
 
     # ------------------------------------------------------------ raw I/O
     def _write(self, data: bytes):

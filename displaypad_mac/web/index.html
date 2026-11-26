@@ -857,6 +857,8 @@ const STRINGS = {
     conflict_hint: " Loading it discards the unsaved changes here; saving yours replaces the other changes.",
     updated_elsewhere: "The configuration was updated from outside this window.",
     svc_down: "The service is not responding", connected: "● Connected · page “{page}”", disconnected: "○ DisplayPad disconnected",
+    replug: "⚠ DisplayPad not answering: replug it",
+    replug_tip: "It is plugged in, but it stopped answering the Mac. Only unplugging it brings it back; plug it straight into the Mac rather than a hub.",
     restart: "Restart service", open_settings: "Open System Settings", restarting: "Restarting the service…",
     perm_input_b: "The “Input Monitoring” permission is missing. ",
     perm_input_1: "Without it the service cannot read the DisplayPad keys. In System Settings → Privacy & Security → Input Monitoring, turn on “Python”. If it is not listed, press + and choose ",
@@ -1153,6 +1155,8 @@ const STRINGS = {
     conflict_hint: " Al cargarla se pierden los cambios sin guardar de aquí; al guardar los tuyos se reemplazan los otros cambios.",
     updated_elsewhere: "La configuración se actualizó desde fuera de esta ventana.",
     svc_down: "El servicio no responde", connected: "● Conectado · página «{page}»", disconnected: "○ DisplayPad desconectado",
+    replug: "⚠ El DisplayPad no responde: reconéctalo",
+    replug_tip: "Está conectado, pero dejó de responder al Mac. Solo desconectarlo lo recupera; conéctalo directamente al Mac en lugar de a un hub.",
     restart: "Reiniciar servicio", open_settings: "Abrir Ajustes", restarting: "Reiniciando el servicio…",
     perm_input_b: "Falta el permiso «Monitoreo de entrada». ",
     perm_input_1: "Sin él el servicio no puede leer las teclas del DisplayPad. En Ajustes del Sistema → Privacidad y seguridad → Monitoreo de entrada, activa «Python». Si no aparece, pulsa + y elige ",
@@ -3412,8 +3416,10 @@ function usesAccess() {
 }
 function renderStatus(down = false) {
   const c = $("#conn");
+  c.title = "";
   if (down) { c.className = "pill bad"; c.textContent = t("svc_down"); }
   else if (status.connected) { c.className = "pill ok"; c.textContent = t("connected", { page: idTitle(status.page) }); }
+  else if (status.pad_problem === "replug") { c.className = "pill bad"; c.textContent = t("replug"); c.title = t("replug_tip"); }
   else { c.className = "pill bad"; c.textContent = t("disconnected"); }
   if (view === "settings") { renderAbout(down); paintPopup(); }
   const box = $("#banners");
