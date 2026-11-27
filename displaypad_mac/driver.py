@@ -97,6 +97,7 @@ class DisplayPad:
         self.lock = threading.RLock()
         self._pending: list = []  # key reports that arrived while waiting for ACKs
         self.busy_since: Optional[float] = None  # watchdog: set while blocking I/O runs
+        self.last_report: bytes = b""  # the key report read_keys() decoded last (diagnostics)
 
     # ------------------------------------------------------------ lifecycle
     def open(self):
@@ -229,9 +230,16 @@ class DisplayPad:
         with self.lock:
             self._require()
             if self._pending:
-                return decode_keys(self._pending.pop(0))
-            r = self._read(timeout_ms)
-        return decode_keys(bytes(r)) if r else None
+                r = self._pending.pop(0)
+            else:
+                r = self._read(timeout_ms)
+                if not r:
+                    return None
+                r = bytes(r)
+        keys = decode_keys(r)
+        if keys is not None:
+            self.last_report = r
+        return keys
 
     def _require(self):
         if not self.connected:

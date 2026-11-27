@@ -50,6 +50,7 @@ log = logging.getLogger(__name__)
 APP_DIR = os.path.expanduser("~/Library/Application Support/DisplayPadMac")
 DEFAULT_CONFIG = os.path.join(APP_DIR, "config.json")
 WATCHDOG_SECONDS = 8
+PAGE_WAIT = 1.5        # seconds a page change waits for the key that asked for it to be let go, at most
 REPLUG_AFTER = 2       # connects in a row the pad didn't answer before asking for a replug
 SETUP_GRACE = 45       # seconds macOS may take to set up a pad that is on USB
 USB_CHECK_EVERY = 5    # seconds between two looks at USB while the pad isn't ready
@@ -211,6 +212,7 @@ class Service:
         self.history: List[str] = []
         self.brightness = self.cfg["brightness"]
         self._pending_page: Optional[str] = None
+        self._page_wait: Optional[float] = None  # since when a page change waits for keys to be let go
         self._pending_brightness: Optional[int] = None
         self._faces: Dict[tuple, bytes] = {}
         self._anims: Dict[int, dict] = {}        # key index -> timeline, frame shown, next due time
@@ -224,6 +226,7 @@ class Service:
         self._live_faces: Dict[tuple, tuple] = {}   # (page, key index, pressed) -> (picture, BGR)
         self._live_due = 0.0
         self._pressed: set = set()
+        self._page_keys: set = set()                # pressed keys that change the page (page, folder, back)
         self._dark: set = set()                     # pressed keys showing their darkened face
         self._fx: Dict[int, dict] = {}              # key index -> press effect playing: style, color, start, step
         self._fx_faces: Dict[tuple, bytes] = {}     # (key index, frame, step, live picture) -> BGR, current page only
@@ -562,7 +565,7 @@ class Service:
         for ev in self._released.values():
             ev.set()
         self._released.clear()
-        self._pressed, self._dark = set(), set()
+        self._pressed, self._dark, self._page_keys = set(), set(), set()
         macro.stop_all()
         macos.release_all()
 
@@ -574,7 +577,7 @@ class Service:
     def _connect(self):
         self.pad.open()
         self.pad.set_brightness(self.brightness)
-        self._pressed, self._dark, self._fx = set(), set(), {}
+        self._pressed, self._dark, self._fx, self._page_keys = set(), set(), {}, set()
         self._let_go()
         self.draw_page()
 
@@ -607,13 +610,19 @@ class Service:
             self.draw_page()
 
     def _on_keys(self, keys: set):
-        for k in sorted(keys - self._pressed):
+        new = keys - self._pressed
+        if len(new) > 1:  # rare for a person: keep what the pad sent, to tell a ghost press apart
+            log.info("keys %s pressed in one report (bytes 40-47: %s)",
+                     ", ".join(str(i + 1) for i in sorted(new)), self.pad.last_report[40:48].hex(" "))
+        for k in sorted(new):
             if macro.recorder.active():  # any pad key ends a macro recording, and does nothing else
                 macro.recorder.stop("pad")
                 log.info("macro recording stopped from the pad (key %d)", k + 1)
                 continue
             spec = self.cfg["pages"][self.page][k]
-            log.info("key %d pressed on '%s'", k + 1, self.page)
+            held = sorted(i + 1 for i in keys if i != k)
+            log.info("key %d pressed on '%s'%s", k + 1, self.page,
+                     f" (also held: {', '.join(map(str, held))})" if held else "")
             fx = effect_of(spec)
             if fx:  # plays over the key, from the first frame now
                 self._dark.discard(k)
@@ -622,6 +631,9 @@ class Service:
             elif spec and self.cfg["press_feedback"]:
                 self._dark.add(k)
                 self.pad.upload(k, self._face(self.page, k, pressed=True))
+            if spec and (spec.get("_up") or spec.get("_folder") or
+                         any(isinstance(a, dict) and a.get("type") == "page" for a in actions_of(spec))):
+                self._page_keys.add(k)
             if spec:
                 released = self._released[k] = threading.Event()
                 threading.Thread(target=run_actions, args=(spec, self, released), daemon=True).start()
@@ -630,6 +642,7 @@ class Service:
                 elif spec.get("_folder"):  # opens after its own actions start, when every key is up
                     self.request_page(spec["_folder"])
         for k in sorted(self._pressed - keys):
+            self._page_keys.discard(k)
             released = self._released.pop(k, None)
             if released:
                 released.set()
@@ -646,8 +659,22 @@ class Service:
             self.brightness, self._pending_brightness = self._pending_brightness, None
             self.pad.set_brightness(self.brightness)
             log.info("brightness %d%%", self.brightness)
-        if self._pending_page is not None and not self._pressed:
-            target, self._pending_page = self._pending_page, None
+        if self._pending_page is not None and self._page_keys:
+            # The page changes once the key that asked for it is let go, so the new page
+            # doesn't show up under the finger. Only that key: the pad can report another
+            # key as held long after it was let go (a ghost press), and waiting for every
+            # key froze the page and left each pressed key dark. And not for ever, in case
+            # the pad reports that key itself as held.
+            now = time.monotonic()
+            if self._page_wait is None:
+                self._page_wait = now
+            if now - self._page_wait < PAGE_WAIT:
+                return
+            log.warning("changing the page although the pad still reports key(s) %s as held",
+                        ", ".join(str(i + 1) for i in sorted(self._page_keys)))
+            self._page_keys.clear()
+        if self._pending_page is not None:
+            target, self._pending_page, self._page_wait = self._pending_page, None, None
             if target == "up":  # out of a folder, to the page or folder that holds it
                 target = self.page.rpartition("/")[0] or self.cfg["start_page"]
                 if self.history and self.history[-1] == target:

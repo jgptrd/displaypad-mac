@@ -655,6 +655,9 @@ cd ~/Library/Application\ Support/DisplayPadMac
   Accesibilidad para Python.
 - **Dejó de funcionar después de `brew upgrade`:** Homebrew cambió el binario de Python.
   Vuelve a ejecutar `./install.sh` y da los permisos al nuevo `Python.app`.
+- **Una tecla actúa aunque no la pulsaste** (el registro dice *keys … pressed in one
+  report*): el DisplayPad informó dos teclas a la vez. Esa línea del registro guarda los
+  bytes que envió el pad; añádela a un issue en GitHub, por favor.
 - **Las teclas quedan negras después de dormir el Mac o desconectar el pad:** el servicio
   se reconecta solo en unos 2 segundos. Si no lo hace, reinícialo.
 - **El pad flotante no aparece:** **Ajustes → Pad flotante** dice por qué. Si falta la app

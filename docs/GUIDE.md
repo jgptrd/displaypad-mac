@@ -628,6 +628,9 @@ cd ~/Library/Application\ Support/DisplayPadMac
   permission.
 - **It stopped working after `brew upgrade`:** Homebrew replaced the Python binary. Run
   `./install.sh` again and give the permissions to the new `Python.app`.
+- **A key runs although you didn't press it** (the log shows *keys … pressed in one
+  report*): the DisplayPad reported two keys at once. That log line keeps the bytes the
+  pad sent; please add it to an issue on GitHub.
 - **Keys stay black after the Mac sleeps or the pad is unplugged:** the service
   reconnects by itself in about 2 seconds. If it doesn't, restart it.
 - **The floating pad doesn't come up:** **Settings → Floating pad** says why. If the
