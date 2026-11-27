@@ -23,7 +23,7 @@ ARCH="$(uname -m)"
 # SWIFT_FLAGS: extra compiler flags (tests: -D DEBUG_HOOKS)
 swiftc -O -swift-version 5 -suppress-warnings -target "$ARCH-apple-macos$MIN" ${SWIFT_FLAGS:-} \
   -o "$B/MacOS/DisplayPad" "$HERE/DisplayPad.swift" \
-  -framework Cocoa -framework WebKit -framework Carbon
+  -framework Cocoa -framework WebKit -framework Carbon -framework UserNotifications
 
 cat > "$B/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

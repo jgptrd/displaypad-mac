@@ -10,9 +10,11 @@
 // Started with --background (by the service: at login, after a crash) it waits with no window
 // and no Dock icon. Opened from Finder, Spotlight or the pad's Configure key, it shows the
 // configurator. With the floating pad off, it quits when the window closes.
+// When the service finds a newer version on GitHub, it says so once in a notification.
 
 import Carbon.HIToolbox
 import Cocoa
+import UserNotifications
 import WebKit
 
 // MARK: - options and text
@@ -343,6 +345,42 @@ final class FloatingPad: NSObject, NSWindowDelegate, WKNavigationDelegate, WKScr
     func webViewWebContentProcessDidTerminate(_ w: WKWebView) { note("pad: web process ended"); load() }
 }
 
+// MARK: - new versions
+
+/// One notification per new version the service finds on GitHub (update.py); clicking it opens
+/// the configurator, which installs it. macOS asks once whether DisplayPad may notify.
+final class Notifier: NSObject, UNUserNotificationCenterDelegate {
+    var onOpen: (() -> Void)?
+    private let told = "notifiedUpdate"
+
+    func attach() { UNUserNotificationCenter.current().delegate = self }  // early: a click may be what started the app
+
+    func announce(_ version: String) {
+        guard UserDefaults.standard.string(forKey: told) != version else { return }
+        UserDefaults.standard.set(version, forKey: told)
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { ok, _ in
+            guard ok else { return }
+            let c = UNMutableNotificationContent()
+            c.title = tr("DisplayPad \(version) is available", "Ya está disponible DisplayPad \(version)")
+            c.body = tr("Click to open DisplayPad and update. Your pages and settings stay.",
+                        "Haz clic para abrir DisplayPad y actualizar. Tus páginas y ajustes se mantienen.")
+            center.add(UNNotificationRequest(identifier: "update", content: c, trigger: nil))
+        }
+    }
+
+    func userNotificationCenter(_ c: UNUserNotificationCenter, didReceive r: UNNotificationResponse,
+                                withCompletionHandler done: @escaping () -> Void) {
+        DispatchQueue.main.async { self.onOpen?() }
+        done()
+    }
+
+    func userNotificationCenter(_ c: UNUserNotificationCenter, willPresent n: UNNotification,
+                                withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void) {
+        done([.banner, .list])
+    }
+}
+
 // MARK: - configurator window
 
 final class AppWebView: WKWebView {
@@ -545,6 +583,7 @@ final class Configurator: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let pad = FloatingPad()
     let hotkey = Hotkey()
+    let notifier = Notifier()
     var configurator: Configurator?
     var popupRev = -1
     var popupOn = false
@@ -557,6 +596,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
         Hotkey.onPress = { [weak self] in self?.pad.toggle() }
         pad.onConfigure = { [weak self] in self?.openConfigurator() }
+        notifier.onOpen = { [weak self] in self?.openConfigurator() }
+        notifier.attach()
         pad.load()
         waitForService()
         if opts.popup { pad.show() }
@@ -593,6 +634,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             language = lang
             NSApp.mainMenu = makeMenu()
         }
+        if let v = p["update"] as? String { notifier.announce(v) }
         let rev = (p["rev"] as? NSNumber)?.intValue ?? -1
         guard rev != popupRev else { return }
         popupRev = rev

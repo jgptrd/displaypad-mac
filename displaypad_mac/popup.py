@@ -92,20 +92,6 @@ def settings_of(raw) -> dict:
     return {"enabled": enabled, "trigger": parse(raw.get("trigger", DEFAULT))["trigger"]}
 
 
-class Ctx:
-    """What the actions of a floating-pad key see: the service, except that a page switch stays
-    in the floating pad (it moves itself) and leaves the pad on the desk alone."""
-
-    def __init__(self, svc):
-        self._svc = svc
-
-    def __getattr__(self, name):
-        return getattr(self._svc, name)
-
-    def request_page(self, name):
-        pass
-
-
 class MouseTap:
     """An event tap on the extra mouse buttons; calls fire() when the trigger is clicked."""
 
@@ -283,6 +269,9 @@ class Popup:
         s, tr = self.settings or {"enabled": False, "trigger": DEFAULT}, self.trigger or {}
         out = {"rev": self.rev, "enabled": s["enabled"], "trigger": s["trigger"], "kind": tr.get("kind", "mouse"),
                "language": self.svc.cfg["language"]}
+        updates = getattr(self.svc, "updates", None)
+        if updates and updates.available():  # the app says so once, in a notification
+            out["update"] = updates.latest["version"]
         if tr.get("kind") == "key":
             out.update(code=tr["code"], carbon=tr["carbon"])
         return out

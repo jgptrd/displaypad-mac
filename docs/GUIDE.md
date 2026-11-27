@@ -11,7 +11,7 @@ Every feature and setting in detail. For a quick look at what it does, start wit
 [Animations](#animations-gif-and-lottie) · [AI assistants (MCP)](#ai-assistants-mcp)
 
 **Setting up and technical details:** [Install in detail](#install-in-detail) ·
-[Editing the configuration by hand](#editing-the-configuration-by-hand) ·
+[Updates](#updates) · [Editing the configuration by hand](#editing-the-configuration-by-hand) ·
 [Useful commands](#useful-commands) · [Troubleshooting](#troubleshooting) ·
 [How it works](#how-it-works)
 
@@ -22,11 +22,16 @@ A DisplayPad on the screen, for when the pad is out of reach or not connected.
 ![The floating pad: the 12 keys of the "home" page in a frosted panel where the mouse is, with the page names at the bottom](floating-pad.png)
 
 - Press **⌘ + middle click** anywhere. Your keys come up under the mouse, on the page the
-  DisplayPad shows (or the start page), with the same pictures and live keys.
+  DisplayPad shows, with the same pictures and live keys. App pages work here too: switch
+  to Teams and the floating pad opens on the Teams page, with or without the DisplayPad
+  connected.
 - Click a key: the floating pad goes away and the key's actions run in the app that was
   in front, so shortcuts and typed text land where you were working.
 - Folders and page keys open inside the floating pad. The page names at the bottom jump
-  to a page and **‹** goes back.
+  to a page (they scroll sideways when there are many) and **‹** goes back.
+- Both pads show the same page: a page you open on the floating pad opens on the
+  DisplayPad too, and the other way round, also while the floating pad is open. Without
+  the DisplayPad, the floating pad comes back on the page you left it on.
 - From the keyboard: **1** to **9**, **0**, **-** and **=** press keys 1 to 12, **⌫** goes
   back and **Esc** closes it. A click outside also closes it. The button at the top right
   opens the configurator.
@@ -186,8 +191,8 @@ The **Settings** tab applies changes right away:
 - **Floating pad:** on or off, its shortcut, and whether it is ready. See
   [The floating pad](#the-floating-pad).
 - **AI assistants (MCP):** see below.
-- **About:** version, service and permission status, and where the configuration and
-  log are.
+- **About:** version and [updates](#updates), service and permission status, and where the
+  configuration and log are.
 
 ![The Settings tab: language, appearance, DisplayPad brightness and key corners, and the OBS connection](configurator-settings.png)
 
@@ -430,7 +435,8 @@ The installer:
 - builds the **DisplayPad** app and adds it to Applications: the configurator in its own
   window, and the floating pad.
 
-Run `./install.sh` again to update. Your configuration is kept.
+Run `./install.sh` again to update, or press **Update now** when the configurator offers a
+new version (see [Updates](#updates)). Your configuration is kept.
 
 ### Permissions
 
@@ -454,6 +460,62 @@ configurator.
 
 Add `--all` to also delete your configuration and pictures.
 
+## Updates
+
+When a new version is published on GitHub, DisplayPad lets you know:
+
+- a banner at the top of the configurator, with **What's new** and **Update now**;
+- a blue dot on the floating pad's configurator button;
+- a macOS notification from the DisplayPad app, once per version. The first time, macOS
+  asks whether DisplayPad may send notifications. Clicking it opens the configurator.
+
+**Update now** downloads the new version from GitHub and installs it the same way
+`./install.sh` does: your pages and settings are kept. Save or discard unsaved changes
+first. It takes about a minute: the service restarts, the pad goes dark for a few seconds,
+and the configurator opens again on the new version. If something goes wrong, the banner
+says so and offers **Try again**; the version you had keeps working and the details are in
+`~/Library/Logs/DisplayPadMac-update.log`.
+
+**Settings → About** shows the version you have, the newest one and when it was checked,
+with **Check now**. Untick **Check for new versions by itself** to stop the checks;
+**Check now** still works.
+
+**What is sent:** a minute after the service starts, and then every 6 hours, it asks
+GitHub for the latest release of
+[jgptrd/displaypad-mac](https://github.com/jgptrd/displaypad-mac/releases)
+(`api.github.com/repos/jgptrd/displaypad-mac/releases/latest`). The request names
+DisplayPadMac and its version, and nothing about your Mac or you. Nothing is downloaded
+until you press **Update now**.
+
+Versions before 1.4.0 don't check for updates: update those once by hand, by downloading
+the new version and running `./install.sh` in it.
+
+### Publishing a new version
+
+For whoever maintains the repository. Every installation sees a new release within 6
+hours, or at once with **Check now**.
+
+1. Set `__version__` in `displaypad_mac/__init__.py` (for example `"1.4.1"`), commit and
+   push.
+2. Tag that commit and make the zip from the tag:
+
+   ```bash
+   git tag v1.4.1 && git push origin v1.4.1
+   git archive --format=zip --prefix=displaypad-mac/ -o displaypad-mac-v1.4.1.zip v1.4.1
+   ```
+
+3. Create the GitHub release for the tag, marked as latest, with the zip attached. Its
+   description is what **What's new** shows.
+
+   ```bash
+   gh release create v1.4.1 displaypad-mac-v1.4.1.zip --title "DisplayPad for macOS 1.4.1" \
+     --notes-file notes.md --latest --verify-tag
+   ```
+
+The tag must match `__version__`: an update whose download has another version is refused.
+Without the zip, GitHub's own zip of the tag is used. Drafts and pre-releases are not
+offered.
+
 ## Editing the configuration by hand
 
 You can also edit `~/Library/Application Support/DisplayPadMac/config.json`. **It is
@@ -469,6 +531,7 @@ reloaded as soon as you save it.** Keys are numbered 1 to 12: 1-6 on the top row
   "corner_radius": 12,
   "mcp": {"enabled": false, "allow_run": false},
   "popup": {"enabled": true, "trigger": "cmd+middle_click"},
+  "check_updates": true,
   "start_page": "home",
   "pages": {
     "home": {
@@ -489,6 +552,9 @@ reloaded as soon as you save it.** Keys are numbered 1 to 12: 1-6 on the top row
 `popup` is the [floating pad](#the-floating-pad): `trigger` is modifiers (`cmd`, `alt`,
 `ctrl`, `shift`) and then a mouse button (`middle_click`, `mouse4` for back, `mouse5` for
 forward) or a key, joined by `+`: `"cmd+middle_click"`, `"ctrl+alt+space"`, `"f19"`.
+
+`check_updates` turns the automatic check for [new versions](#updates) on (`true`, the
+default) or off.
 
 A live clock and a CPU meter:
 
@@ -611,6 +677,7 @@ cd ~/Library/Application\ Support/DisplayPadMac
 | Check and request permissions | `.venv/bin/python -m displaypad_mac permissions` |
 | Restart the service | `launchctl kickstart -k gui/$(id -u)/com.displaypadmac.agent` |
 | Follow the log | `tail -f ~/Library/Logs/DisplayPadMac.log` |
+| See how the last update went | `tail -50 ~/Library/Logs/DisplayPadMac-update.log` |
 | Test the hardware (stop the service first) | `.venv/bin/python -m displaypad_mac test` |
 
 ## Troubleshooting
@@ -639,6 +706,10 @@ cd ~/Library/Application\ Support/DisplayPadMac
   keyboard shortcut, record another one.
 - **⌘ + middle click also opens a link in the browser:** Python is missing the
   Accessibility permission, so the click reaches the browser too.
+- **Update now failed:** the banner says why and the details are in
+  `~/Library/Logs/DisplayPadMac-update.log`. **Try again**, or update by hand: download
+  the release's zip from GitHub and run `./install.sh` in it. "Could not check" in
+  **Settings → About** usually means the Mac was offline; it tries again in 30 minutes.
 - **The DisplayPad app says the service is not responding:** check the log. If another
   program uses port 8765 the configurator can't start (the pad keeps working).
 - **Screen − / + doesn't change the external monitor:** turn DDC/CI on in the monitor's

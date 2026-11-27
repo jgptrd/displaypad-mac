@@ -81,7 +81,8 @@ Python 3.11 o superior (`brew install python@3.14`) y las Command Line Tools de 
    texto y el atajo del mouse del pad flotante) y, si tienes un DisplayPad, en
    **Monitoreo de entrada**.
 
-Para actualizar, vuelve a ejecutar `./install.sh`: tu configuración se conserva. Para
+Cuando sale una versión nueva, el configurador la ofrece: pulsa **Actualizar ahora** y tu
+configuración se conserva ([Actualizaciones](docs/GUIDE.es.md#actualizaciones)). Para
 quitarlo, ejecuta `./uninstall.sh`. Más en
 [Instalación en detalle](docs/GUIDE.es.md#instalación-en-detalle).
 

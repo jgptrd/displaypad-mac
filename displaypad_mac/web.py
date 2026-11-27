@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from . import anim, browsers, daemon, emojidata, i18n, keycapture, live, macos, macro, mcp, obs, popup, presets, sound  # daemon: circular, used at call time only
+from . import anim, browsers, daemon, emojidata, i18n, keycapture, live, macos, macro, mcp, obs, presets, sound  # daemon: circular, used at call time only
 from .actions import run_actions, test_actions
 from .i18n import t
 from .render import MAX_CORNER, effect_of, effect_preview, frame_durations, render_key
@@ -56,14 +56,17 @@ def _page(name: str = "index.html"):
 
 def pad_info(svc) -> dict:
     """The pages for the floating pad: each page and folder with its 12 keys (null: empty),
-    the page the pad shows (or would show), and the order of the pages."""
+    the page the pad shows (or would show), and the order of the pages. Both pads show the
+    same page: the floating pad opens on it and moves it (POST /api/pad/page)."""
+    page = svc.popup_page()
     cfg = svc.cfg
     pages = {name: [{k: v for k, v in spec.items() if k != "folder"} if spec else None for spec in keys]
              for name, keys in cfg["pages"].items()}
-    page = svc.page if svc.page in pages else cfg["start_page"]
+    page = page if page in pages else cfg["start_page"]
     return {"page": page, "start": cfg["start_page"], "pages": pages,
             "order": [n for n in cfg["pages"] if "/" not in n], "corner": cfg["corner_radius"],
-            "language": cfg["language"], "build": _page("pad.html")[1], "rev": svc.config_rev()}
+            "language": cfg["language"], "build": _page("pad.html")[1], "rev": svc.config_rev(),
+            "update": svc.updates.latest["version"] if svc.updates.available() else None}
 MAX_BODY = 12 * 1024 * 1024
 APP_DIRS = ("/Applications", "/Applications/Utilities", "/System/Applications",
             "/System/Applications/Utilities", os.path.expanduser("~/Applications"))
@@ -267,6 +270,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(200, _page("pad.html")[0], "text/html; charset=utf-8")
         elif path == "/api/pad":
             self._json(pad_info(svc))
+        elif path == "/api/pad/state":  # the open floating pad follows the pad and the app pages
+            self._json({"page": svc.page, "rev": svc.config_rev()})
         elif path == "/api/popup/wait":  # the DisplayPad app, waiting to show the floating pad
             q = parse_qs(urlparse(self.path).query)
             try:
@@ -283,6 +288,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(json.loads(data), headers={"X-Config-Rev": rev})
             except (OSError, ValueError) as e:
                 self._json({"error": t("could not read config.json: {error}", error=e)}, 500)
+        elif path == "/api/update":  # a newer version on GitHub? (Settings > About)
+            self._json(svc.updates.status(notes=True))
         elif path == "/api/status":
             st = svc.status()
             st["page_build"] = _page()[1]
@@ -395,8 +402,15 @@ class _Handler(BaseHTTPRequestHandler):
                 spec = keys[n - 1]
                 if spec:
                     log.info("key %d pressed on '%s' (floating pad)", n, body["page"])
-                    threading.Thread(target=run_actions, args=(spec, popup.Ctx(svc)), daemon=True).start()
+                    threading.Thread(target=run_actions, args=(spec, svc), daemon=True).start()
                 self._json({"ok": bool(spec)})
+            elif path == "/api/pad/page":  # the floating pad moved: {to: a page, a folder, "back" or "up"}
+                to = json.loads(self._body() or b"{}").get("to")
+                if not isinstance(to, str) or not (to in ("back", "up") or to in svc.cfg["pages"]):
+                    return self._json({"error": t("that page is not on the pad any more")}, 400)
+                log.info("floating pad: page '%s'", to)
+                svc.request_page(to)  # the pad on the desk follows
+                self._json({"page": svc.wait_page()})
             elif path == "/api/popup/show":  # "Try it" in Settings
                 svc.popup.show("test")
                 self._json(svc.popup.status())
@@ -437,6 +451,11 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(keycapture.capture.cancel())
             elif path == "/api/macro/stop-all":
                 self._json({"stopped": macro.stop_all()})
+            elif path == "/api/update/check":
+                self._json(svc.updates.check_now())
+            elif path == "/api/update/install":  # downloads the latest release and runs its install.sh
+                svc.updates.install()
+                self._json(svc.updates.status(notes=True))
             elif path == "/api/restart":
                 # launchd (KeepAlive) starts the service again; needed after granting a permission
                 self._json({"ok": True})

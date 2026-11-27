@@ -11,7 +11,7 @@ Cada función y ajuste en detalle. Para ver rápido lo que hace, empieza por el
 [Animaciones](#animaciones-gif-y-lottie) · [Asistentes de IA (MCP)](#asistentes-de-ia-mcp)
 
 **Instalación y detalles técnicos:** [Instalación en detalle](#instalación-en-detalle) ·
-[Editar la configuración a mano](#editar-la-configuración-a-mano) ·
+[Actualizaciones](#actualizaciones) · [Editar la configuración a mano](#editar-la-configuración-a-mano) ·
 [Comandos útiles](#comandos-útiles) · [Solución de problemas](#solución-de-problemas) ·
 [Cómo funciona](#cómo-funciona)
 
@@ -22,12 +22,17 @@ Un DisplayPad en la pantalla, para cuando el pad no está a mano o no está cone
 ![El pad flotante: las 12 teclas de la página "home" en un panel translúcido donde está el mouse, con los nombres de página abajo](floating-pad.png)
 
 - Pulsa **⌘ + clic central** en cualquier lugar. Tus teclas aparecen bajo el mouse, en la
-  página que muestra el DisplayPad (o la página de inicio), con las mismas imágenes y
-  teclas en vivo.
+  página que muestra el DisplayPad, con las mismas imágenes y teclas en vivo. Las páginas
+  de apps también funcionan aquí: cambia a Teams y el pad flotante abre en la página de
+  Teams, con o sin el DisplayPad conectado.
 - Haz clic en una tecla: el pad flotante se va y las acciones de la tecla se ejecutan en la
   app que estaba al frente, así los atajos y el texto llegan donde estabas trabajando.
 - Las carpetas y las teclas de página se abren dentro del pad flotante. Los nombres de
-  página de abajo llevan a una página y **‹** vuelve atrás.
+  página de abajo llevan a una página (se desplazan de lado cuando hay muchas) y **‹**
+  vuelve atrás.
+- Los dos pads muestran la misma página: una página que abres en el pad flotante también
+  se abre en el DisplayPad, y al revés, también mientras el pad flotante está abierto. Sin
+  el DisplayPad, el pad flotante vuelve en la página donde lo dejaste.
 - Con el teclado: **1** a **9**, **0**, **-** e **=** pulsan las teclas 1 a 12, **⌫** vuelve
   atrás y **Esc** lo cierra. Un clic fuera también lo cierra. El botón de arriba a la
   derecha abre el configurador.
@@ -202,8 +207,8 @@ La pestaña **Ajustes** aplica los cambios al momento:
 - **Pad flotante:** activado o no, su atajo y si está listo. Ver
   [El pad flotante](#el-pad-flotante).
 - **Asistentes de IA (MCP):** ver abajo.
-- **Acerca de:** versión, estado del servicio y de los permisos, y dónde están la
-  configuración y el registro.
+- **Acerca de:** versión y [actualizaciones](#actualizaciones), estado del servicio y de los
+  permisos, y dónde están la configuración y el registro.
 
 ![La pestaña de Ajustes: idioma, apariencia, brillo y esquinas de las teclas del DisplayPad, y la conexión con OBS](configurator-settings.png)
 
@@ -455,7 +460,9 @@ El instalador:
 - crea la app **DisplayPad** y la agrega a Aplicaciones: el configurador en su propia
   ventana, y el pad flotante.
 
-Vuelve a ejecutar `./install.sh` para actualizar. Tu configuración se conserva.
+Vuelve a ejecutar `./install.sh` para actualizar, o pulsa **Actualizar ahora** cuando el
+configurador ofrezca una versión nueva (ver [Actualizaciones](#actualizaciones)). Tu
+configuración se conserva.
 
 ### Permisos
 
@@ -479,6 +486,63 @@ sección, pulsa **+** y elige ese `Python.app`. Después pulsa **Restart service
 
 Agrega `--all` para borrar también tu configuración e imágenes.
 
+## Actualizaciones
+
+Cuando se publica una versión nueva en GitHub, DisplayPad te avisa:
+
+- un aviso arriba en el configurador, con **Novedades** y **Actualizar ahora**;
+- un punto azul en el botón del configurador del pad flotante;
+- una notificación de macOS de la app DisplayPad, una vez por versión. La primera vez,
+  macOS pregunta si DisplayPad puede enviar notificaciones. Al hacer clic se abre el
+  configurador.
+
+**Actualizar ahora** descarga la versión nueva de GitHub y la instala igual que
+`./install.sh`: tus páginas y ajustes se mantienen. Guarda o descarta antes los cambios sin
+guardar. Toma cerca de un minuto: el servicio se reinicia, el pad se apaga unos segundos y
+el configurador vuelve a abrirse con la versión nueva. Si algo sale mal, el aviso lo dice y
+ofrece **Reintentar**; la versión que tenías sigue funcionando y los detalles están en
+`~/Library/Logs/DisplayPadMac-update.log`.
+
+**Ajustes → Acerca de** muestra la versión que tienes, la más nueva y cuándo se revisó, con
+**Revisar ahora**. Desmarca **Buscar versiones nuevas por sí solo** para dejar de revisar;
+**Revisar ahora** sigue funcionando.
+
+**Qué se envía:** un minuto después de que arranca el servicio, y luego cada 6 horas, le
+pregunta a GitHub por la última versión publicada de
+[jgptrd/displaypad-mac](https://github.com/jgptrd/displaypad-mac/releases)
+(`api.github.com/repos/jgptrd/displaypad-mac/releases/latest`). La petición dice
+DisplayPadMac y su versión, y nada sobre tu Mac ni sobre ti. No se descarga nada hasta que
+pulsas **Actualizar ahora**.
+
+Las versiones anteriores a la 1.4.0 no buscan actualizaciones: actualízalas una vez a
+mano, descargando la versión nueva y ejecutando `./install.sh` en ella.
+
+### Publicar una versión nueva
+
+Para quien mantiene el repositorio. Todas las instalaciones ven una versión nueva en
+menos de 6 horas, o al momento con **Revisar ahora**.
+
+1. Pon `__version__` en `displaypad_mac/__init__.py` (por ejemplo `"1.4.1"`), haz commit y
+   push.
+2. Etiqueta ese commit y crea el zip desde la etiqueta:
+
+   ```bash
+   git tag v1.4.1 && git push origin v1.4.1
+   git archive --format=zip --prefix=displaypad-mac/ -o displaypad-mac-v1.4.1.zip v1.4.1
+   ```
+
+3. Crea la versión (release) de GitHub para la etiqueta, marcada como la última, con el zip
+   adjunto. Su descripción es lo que muestra **Novedades**.
+
+   ```bash
+   gh release create v1.4.1 displaypad-mac-v1.4.1.zip --title "DisplayPad for macOS 1.4.1" \
+     --notes-file notes.md --latest --verify-tag
+   ```
+
+La etiqueta debe coincidir con `__version__`: se rechaza una actualización cuya descarga
+tiene otra versión. Sin el zip se usa el zip que GitHub hace de la etiqueta. Los borradores
+y las versiones preliminares (pre-release) no se ofrecen.
+
 ## Editar la configuración a mano
 
 También puedes editar `~/Library/Application Support/DisplayPadMac/config.json`. **Se
@@ -495,6 +559,7 @@ completo.
   "corner_radius": 12,
   "mcp": {"enabled": false, "allow_run": false},
   "popup": {"enabled": true, "trigger": "cmd+middle_click"},
+  "check_updates": true,
   "start_page": "inicio",
   "pages": {
     "inicio": {
@@ -516,6 +581,9 @@ cara de 102 píxeles: `0` es cuadrada, `12` es el valor por defecto, `51` es red
 `ctrl`, `shift`) y luego un botón del mouse (`middle_click`, `mouse4` para atrás, `mouse5`
 para adelante) o una tecla, unidos con `+`: `"cmd+middle_click"`, `"ctrl+alt+space"`,
 `"f19"`.
+
+`check_updates` activa (`true`, el valor por defecto) o desactiva la búsqueda automática
+de [versiones nuevas](#actualizaciones).
 
 Un reloj en vivo y un medidor de CPU:
 
@@ -638,6 +706,7 @@ cd ~/Library/Application\ Support/DisplayPadMac
 | Ver y pedir los permisos | `.venv/bin/python -m displaypad_mac permissions` |
 | Reiniciar el servicio | `launchctl kickstart -k gui/$(id -u)/com.displaypadmac.agent` |
 | Ver el registro en vivo | `tail -f ~/Library/Logs/DisplayPadMac.log` |
+| Ver cómo fue la última actualización | `tail -50 ~/Library/Logs/DisplayPadMac-update.log` |
 | Probar el hardware (detén el servicio antes) | `.venv/bin/python -m displaypad_mac test` |
 
 ## Solución de problemas
@@ -665,6 +734,11 @@ cd ~/Library/Application\ Support/DisplayPadMac
   ejecutar `./install.sh`. Si otra app ya usa un atajo de teclado, graba otro.
 - **⌘ + clic central también abre un enlace en el navegador:** a Python le falta el
   permiso de Accesibilidad, así que el clic también llega al navegador.
+- **Actualizar ahora falló:** el aviso dice por qué y los detalles están en
+  `~/Library/Logs/DisplayPadMac-update.log`. Pulsa **Reintentar**, o actualiza a mano:
+  descarga el zip de la versión desde GitHub y ejecuta `./install.sh` en él. "No se pudo
+  revisar" en **Ajustes → Acerca de** suele significar que el Mac estaba sin conexión;
+  vuelve a intentarlo en 30 minutos.
 - **La app DisplayPad dice que el servicio no responde:** revisa el registro. Si otro
   programa usa el puerto 8765, el configurador no arranca (el pad sigue funcionando).
 - **Pantalla − / + no cambia el monitor externo:** activa DDC/CI en el menú del monitor.

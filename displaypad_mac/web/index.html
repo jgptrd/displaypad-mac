@@ -499,6 +499,8 @@ dialog.crop-dlg p.hint { margin: 0 0 10px; }
 .kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; }
 .ok-t { color: var(--ok); } .bad-t { color: var(--danger); } .warn-t { color: var(--warn-text); }
+.upd-row { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.banner .small-link { flex: none; align-self: center; color: inherit; font-weight: 600; }
 a { color: var(--accent); }
 /* In the DisplayPad app the page is the whole window: the header is its title bar, with the
    window buttons at its left (the app sets html.in-app, and html.fullscreen without them). */
@@ -598,7 +600,7 @@ html.in-app aside.card { top: 54px; max-height: calc(100vh - 72px); }
 
 <script>
 "use strict";
-const REPO_URL = "https://github.com/Javiergptrd/displaypad-mac";
+const REPO_URL = "https://github.com/jgptrd/displaypad-mac";
 // ---------------------------------------------------------------- language
 // English is the default; every text the page shows is here, in both languages.
 const STRINGS = {
@@ -897,6 +899,17 @@ const STRINGS = {
     about_input: "Input Monitoring", about_ax: "Accessibility", allowed: "Allowed", not_allowed: "Not allowed",
     about_anim: "Animations", about_anim_v: "{keys} animated key(s), {fps} frames/s",
     about_config: "Configuration", about_log: "Log",
+    about_updates: "Updates", upd_current: "Up to date", upd_new: "{v} available", upd_checked: "checked {when}",
+    upd_never: "not checked yet", upd_check: "Check now", upd_offline: "Could not check: {err}",
+    upd_auto: "Check for new versions by itself",
+    upd_auto_hint: "Every few hours the service asks GitHub for the latest release. Nothing about you or your Mac is sent.",
+    upd_b: "DisplayPad {v} is available. ", upd_1: "You have {cur}. Installing it takes about a minute: the service restarts, this window closes and opens again, and your pages and settings stay.",
+    upd_install: "Update now", upd_notes: "What's new", upd_downloading: "Downloading it…",
+    upd_installing: "Installing it: this window closes and opens again in about a minute.",
+    upd_failed: "The update didn't finish: {msg}", upd_retry: "Try again",
+    upd_ask: "Install DisplayPad {v} now? The service restarts and this window closes for about a minute. Your pages and settings are kept.",
+    upd_save_first: "Save or discard your changes first: this window closes while it updates.",
+    upd_done: "Updated to DisplayPad {v}",
     about_ai: "Made with AI: this project was written with Claude Code (Anthropic) and tested by a person on a real DisplayPad.",
     about_source: "Source code, help and updates",
   },
@@ -1195,6 +1208,17 @@ const STRINGS = {
     about_input: "Monitoreo de entrada", about_ax: "Accesibilidad", allowed: "Permitido", not_allowed: "Sin permiso",
     about_anim: "Animaciones", about_anim_v: "{keys} tecla(s) animada(s), {fps} cuadros/s",
     about_config: "Configuración", about_log: "Registro",
+    about_updates: "Actualizaciones", upd_current: "Al día", upd_new: "{v} disponible", upd_checked: "revisado {when}",
+    upd_never: "aún sin revisar", upd_check: "Revisar ahora", upd_offline: "No se pudo revisar: {err}",
+    upd_auto: "Buscar versiones nuevas por sí solo",
+    upd_auto_hint: "Cada pocas horas el servicio le pregunta a GitHub por la última versión publicada. No se envía nada sobre ti ni sobre tu Mac.",
+    upd_b: "Ya está disponible DisplayPad {v}. ", upd_1: "Tienes la {cur}. Instalarla toma cerca de un minuto: el servicio se reinicia, esta ventana se cierra y vuelve a abrirse, y tus páginas y ajustes se mantienen.",
+    upd_install: "Actualizar ahora", upd_notes: "Novedades", upd_downloading: "Descargándola…",
+    upd_installing: "Instalándola: esta ventana se cierra y vuelve a abrirse en cerca de un minuto.",
+    upd_failed: "La actualización no terminó: {msg}", upd_retry: "Reintentar",
+    upd_ask: "¿Instalar DisplayPad {v} ahora? El servicio se reinicia y esta ventana se cierra durante cerca de un minuto. Tus páginas y ajustes se mantienen.",
+    upd_save_first: "Primero guarda o descarta tus cambios: esta ventana se cierra mientras se actualiza.",
+    upd_done: "Actualizado a DisplayPad {v}",
     about_ai: "Hecho con IA: este proyecto se escribió con Claude Code (Anthropic) y una persona lo probó en un DisplayPad real.",
     about_source: "Código fuente, ayuda y actualizaciones",
   },
@@ -3423,7 +3447,9 @@ function renderStatus(down = false) {
   else { c.className = "pill bad"; c.textContent = t("disconnected"); }
   if (view === "settings") { renderAbout(down); paintPopup(); }
   const box = $("#banners");
-  const sig = down ? "down" : JSON.stringify([LANG, status.input_monitoring, status.accessibility && 1, usesAccess(), status.config_error, status.macros_playing]);
+  const up = status.update || {};
+  const sig = down ? "down" : JSON.stringify([LANG, status.input_monitoring, status.accessibility && 1, usesAccess(), status.config_error, status.macros_playing,
+    up.available && up.latest, up.state, up.message]);
   if (sig === renderStatus.sig) return;
   renderStatus.sig = sig;
   box.querySelectorAll(".perm").forEach(b => b.remove());
@@ -3440,6 +3466,15 @@ function renderStatus(down = false) {
       h("button", { class: "small", onclick: () => perm("accessibility"), text: t("open_settings") }), restart()));
   if (status.config_error)
     box.append(h("div", { class: "banner err perm" }, h("div", {}, h("b", { text: t("config_err") }), status.config_error)));
+  if (up.available) { // a newer version on GitHub (update.py)
+    const working = up.state === "downloading" || up.state === "installing";
+    box.append(h("div", { class: "banner perm update" + (up.state === "failed" ? " err" : "") }, h("div", {},
+      h("b", { text: t("upd_b", { v: up.latest }) }),
+      up.state === "downloading" ? t("upd_downloading") : up.state === "installing" ? t("upd_installing")
+        : up.state === "failed" ? t("upd_failed", { msg: up.message }) : t("upd_1", { cur: up.current })),
+      h("a", { class: "small-link", href: up.url, target: "_blank", rel: "noopener", text: t("upd_notes") }),
+      working ? null : h("button", { class: "small primary", onclick: installUpdate, text: up.state === "failed" ? t("upd_retry") : t("upd_install") })));
+  }
   if (status.macros_playing > 0)
     box.append(h("div", { class: "banner perm" }, h("div", { text: t("playing", { n: status.macros_playing }) }),
       h("button", { class: "small", text: t("stop_macros"),
@@ -3450,6 +3485,37 @@ function outdated() { // the service was updated and now sends a newer page than
   if ($("#banners .outdated")) return;
   $("#banners").prepend(h("div", { class: "banner outdated" }, h("div", {}, h("b", { text: t("outdated_b") }), t("outdated_1")),
     h("button", { class: "small", onclick: () => location.reload(), text: t("reload") })));
+}
+async function installUpdate() {
+  const v = status.update?.latest;
+  if (isDirty()) return toast(t("upd_save_first"));
+  if (!await ask(t("upd_ask", { v }))) return;
+  try { status.update = await postJSON("/api/update/install", {}); renderStatus(); }
+  catch (e) { toast(e.message); }
+}
+async function checkUpdate() {
+  try {
+    status.update = await postJSON("/api/update/check", {});
+    renderStatus();
+    const up = status.update;
+    if (up.error) toast(t("upd_offline", { err: up.error }));
+    else if (!up.available) toast(t("upd_current") + " (" + up.current + ")");
+  } catch (e) { toast(e.message); }
+}
+function updateRow() {
+  const up = status.update || {};
+  const when = up.checked ? new Date(up.checked * 1000).toLocaleString(LANG, { dateStyle: "short", timeStyle: "short" }) : "";
+  const said = up.available ? h("span", { class: "warn-t", text: t("upd_new", { v: up.latest }) })
+    : up.error ? h("span", { class: "bad-t", text: t("upd_offline", { err: up.error }) })
+    : up.checked ? h("span", { class: "ok-t", text: t("upd_current") }) : h("span", { class: "hint", text: t("upd_never") });
+  return h("span", { class: "upd-row" }, said, when ? h("small", { class: "hint", text: " · " + t("upd_checked", { when }) }) : null,
+    h("button", { class: "small", text: t("upd_check"), disabled: up.state === "checking", onclick: checkUpdate }));
+}
+function justUpdated() { // once, in the window that opens after an update
+  const v = status.update?.just_updated;
+  if (!v) return;
+  try { if (localStorage.getItem("dp-updated") === v) return; localStorage.setItem("dp-updated", v); } catch {}
+  toast(t("upd_done", { v }));
 }
 async function perm(which) {
   try { status = await postJSON("/api/permissions", { which }); renderStatus(); } catch (e) { toast(e.message); }
@@ -3463,7 +3529,7 @@ let pollTimer;
 async function poll() {
   clearTimeout(pollTimer);
   const wasAccess = status.accessibility;
-  try { status = await getJSON("/api/status"); renderStatus(); }
+  try { status = await getJSON("/api/status"); renderStatus(); justUpdated(); }
   catch { renderStatus(true); }
   if (status.page_build && /^[0-9a-f]{12}$/.test(PAGE_BUILD) && status.page_build !== PAGE_BUILD) outdated();
   if (wasAccess !== status.accessibility && cfg) renderActions();
@@ -3591,6 +3657,8 @@ async function renderSettings(refresh = false) {
 
   const about = h("div", { class: "card stack" }, h("h2", { text: t("set_about") }),
     h("dl", { class: "kv", id: "about-kv" }),
+    h("div", {}, h("label", { class: "check" }, h("input", { type: "checkbox", checked: cfg.check_updates !== false,
+      onchange: e => setSetting({ check_updates: e.target.checked }) }), t("upd_auto")), h("small", { text: t("upd_auto_hint") })),
     h("p", { class: "hint", style: "margin:0", text: t("about_ai") }),
     h("p", { style: "margin:0" }, h("a", { href: REPO_URL, target: "_blank", rel: "noopener", text: t("about_source") })));
 
@@ -3678,9 +3746,14 @@ async function obsCard(refresh) {
 function renderAbout(down = false) {
   const kv = $("#about-kv");
   if (!kv) return;
+  const sig = JSON.stringify([LANG, down, status.version, status.connected, status.input_monitoring, status.accessibility,
+    status.animation?.keys, status.animation?.fps, status.config_path, status.log_path, status.update]);
+  if (kv.dataset.sig === sig) return; // the same: its buttons stay put under the mouse
+  kv.dataset.sig = sig;
   const yes = (ok, a, b) => h("span", { class: ok ? "ok-t" : "bad-t", text: ok ? a : b });
   const rows = [
     [t("about_version"), status.version || "—"],
+    [t("about_updates"), updateRow()],
     [t("about_service"), yes(!down, t("about_running"), t("svc_down"))],
     [t("about_device"), yes(!!status.connected, t("about_connected"), t("about_not_connected"))],
     [t("about_input"), yes(status.input_monitoring === "granted", t("allowed"), t("not_allowed"))],

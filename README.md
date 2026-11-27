@@ -79,8 +79,9 @@ Python 3.11 or newer (`brew install python@3.14`) and the Xcode Command Line Too
    the floating pad's mouse shortcut) and, if you have a DisplayPad, in **Input
    Monitoring**.
 
-To update, run `./install.sh` again: your setup is kept. To remove it, run
-`./uninstall.sh`. More in [Install in detail](docs/GUIDE.md#install-in-detail).
+When a new version comes out, the configurator offers it: press **Update now** and your
+setup is kept ([Updates](docs/GUIDE.md#updates)). To remove it, run `./uninstall.sh`. More
+in [Install in detail](docs/GUIDE.md#install-in-detail).
 
 ## Get started
 

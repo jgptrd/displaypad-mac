@@ -729,7 +729,9 @@ TOOLS = [
     _tool(get_status, "DisplayPad status",
           "Whether the DisplayPad is connected (pad_problem \"replug\": it is plugged in but stopped "
           "answering, and the user must unplug it and plug it back in), the page it shows, brightness, macOS permissions "
-          "(input_monitoring, accessibility), the floating pad (popup), the pages and the start page.", read_only=True),
+          "(input_monitoring, accessibility), the floating pad (popup), new versions (update: current, latest, "
+          "available; the user installs one with Update now in the configurator), the pages and the start page.",
+          read_only=True),
     _tool(get_reference, "Configuration reference",
           "Every key field and action type with examples, plus layout tips. Read it before creating keys.",
           read_only=True),

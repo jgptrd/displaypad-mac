@@ -243,6 +243,18 @@ ES = {
     "floating pad: {error}": "pad flotante: {error}",
     "{name} must be an object": "{name} debe ser un objeto",
     "that key is not on the pad any more": "esa tecla ya no está en el pad",
+    "that page is not on the pad any more": "esa página ya no está en el pad",
+    # update.py
+    "check_updates must be true or false": "check_updates debe ser true o false",
+    "the latest release has no version number ({tag})": "la última versión publicada no tiene número de versión ({tag})",
+    "the update is already being installed": "la actualización ya se está instalando",
+    "there is no newer version to install": "no hay una versión más nueva para instalar",
+    "the release's zip is not on GitHub: {url}": "el zip de la versión no está en GitHub: {url}",
+    "the download is version {found}, not {version}": "la descarga es la versión {found}, no la {version}",
+    "install.sh stopped with an error (code {code}); see {log}": "install.sh se detuvo con un error (código {code}); mira {log}",
+    "the download is too big ({mb} MB)": "la descarga es demasiado grande ({mb} MB)",
+    "the download has an unexpected file: {name}": "la descarga tiene un archivo inesperado: {name}",
+    "the download has no install.sh": "la descarga no tiene install.sh",
     "macOS didn't let DisplayPad watch the mouse buttons (Input Monitoring)":
         "macOS no dejó que DisplayPad vea los botones del mouse (Monitoreo de entrada)",
 }

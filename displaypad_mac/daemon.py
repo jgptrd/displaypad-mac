@@ -38,7 +38,7 @@ import threading
 import time
 from typing import Dict, List, Optional
 
-from . import __version__, appwatch, i18n, keycapture, live, macos, macro, popup, sound, web
+from . import __version__, appwatch, i18n, keycapture, live, macos, macro, popup, sound, update, web
 from .actions import NEEDS_POST_EVENTS, actions_of, run_actions, validate_action
 from .driver import NUM_KEYS, DisplayPad, DisplayPadError, PadNotAnswering, device_present, on_usb
 from .i18n import t
@@ -56,7 +56,7 @@ SETUP_GRACE = 45       # seconds macOS may take to set up a pad that is on USB
 USB_CHECK_EVERY = 5    # seconds between two looks at USB while the pad isn't ready
 REPLUG_HINT = "unplug the DisplayPad and plug it back in (straight into the Mac, not a hub)"
 THEMES = ("system", "light", "dark")
-SETTINGS = ("language", "theme", "brightness", "press_feedback", "corner_radius", "mcp", "popup")
+SETTINGS = ("language", "theme", "brightness", "press_feedback", "corner_radius", "mcp", "popup", "check_updates")
 # Inside a folder, key 1 is always this one: it goes back to the page or folder that holds it.
 BACK_KEY = {"emoji": "⬅️", "color": "#2B2B33"}
 BACK_LABEL = {"en": "Back", "es": "Volver"}
@@ -170,6 +170,9 @@ def parse_config(cfg: dict, base_dir: str) -> dict:
     mcp = cfg.get("mcp", {})
     if not isinstance(mcp, dict) or not all(isinstance(v, bool) for v in mcp.values()):
         raise ConfigError(t("mcp must be an object with true/false values"))
+    check_updates = cfg.get("check_updates", True)
+    if not isinstance(check_updates, bool):
+        raise ConfigError(t("check_updates must be true or false"))
     try:
         floating = popup.settings_of(cfg.get("popup"))
     except ValueError as e:
@@ -180,7 +183,7 @@ def parse_config(cfg: dict, base_dir: str) -> dict:
             "corner_radius": round(corner),
             "language": lang, "theme": theme,
             "mcp": {"enabled": mcp.get("enabled", False), "allow_run": mcp.get("allow_run", False)},
-            "popup": floating, "base_dir": base_dir}
+            "popup": floating, "check_updates": check_updates, "base_dir": base_dir}
 
 
 def load_config(path: str) -> dict:
@@ -237,17 +240,42 @@ class Service:
         self._released: Dict[int, threading.Event] = {}  # pad key -> set when it is let go ("hold" shortcuts)
         self._stop = threading.Event()
         self._reload = threading.Event()
+        self._wake = threading.Event()     # a page asked for while the pad is away: make it now
         self._cfg_lock = threading.Lock()  # one read-modify-write of config.json at a time
         self.token = web.load_token(self.cfg["base_dir"])
         self.mcp_token = web.load_token(self.cfg["base_dir"], ".mcp-token")
         self.auto = appwatch.AutoPages()
+        self._apps = appwatch.Apps()
+        self._apps_lock = threading.Lock()  # one look at the apps at a time (its thread, the floating pad)
+        self._apps_cfg: Optional[dict] = None
+        self._apps_running: set = set()
+        self._apps_next = 0.0
         self.popup = popup.Popup(self)
+        self.updates = update.Updater(self)
 
     # -------------------------------------------------- called from actions
     def request_page(self, name: str):
         """A page name, a folder ("home/3"), "back" (the previous one) or "up" (out of a folder)."""
         if name in ("back", "up") or name in self.cfg["pages"]:
             self._pending_page = name
+            self._wake.set()
+
+    def wait_page(self, timeout: float = 1.0) -> str:
+        """The page, once the change asked for is made. The main loop makes it within a few
+        hundredths of a second (later while a pad key that asked for one is still held)."""
+        end = time.monotonic() + timeout
+        while self._pending_page is not None and time.monotonic() < end and not self._stop.is_set():
+            time.sleep(0.02)
+        return self.page
+
+    def popup_page(self) -> str:
+        """The page as the floating pad opens: after a fresh look at the app in front, so it
+        opens on the page linked to the app just switched to, not on the one before."""
+        try:
+            self._check_apps()
+        except Exception:
+            log.exception("watching apps")
+        return self.wait_page()
 
     def open_configurator(self):
         """In the DisplayPad app's own window; in the browser when the app can't be found."""
@@ -276,7 +304,7 @@ class Service:
                               "ms_per_frame": self._anim_stats[1]},
                 "live": {"keys": len(self._live_keys), **self.live.status()},
                 "sounds": {"keys": len(self._sound_keys), "playing": sound.playing_count()},
-                "popup": self.popup.status()}
+                "popup": self.popup.status(), "update": self.updates.status()}
 
     def config_rev(self) -> str:
         """Short hash of config.json, so a window or an assistant can tell it changed under them."""
@@ -689,32 +717,37 @@ class Service:
             if draw:
                 self.draw_page()
 
+    def _check_apps(self):
+        """One look at the apps (see appwatch): the page linked to an app that has just opened
+        or come to the front becomes the next page."""
+        with self._apps_lock:
+            cfg = self.cfg
+            if cfg is not self._apps_cfg:
+                self._apps_cfg = cfg
+                if cfg["links"]:
+                    self.auto.configure(cfg["links"])
+                else:
+                    self.auto = appwatch.AutoPages()  # start afresh when links come back
+            if not cfg["links"]:
+                return
+            now = time.monotonic()
+            if now >= self._apps_next:
+                self._apps_running, self._apps_next = self._apps.running(), now + appwatch.RUNNING_SECONDS
+            target = self.auto.update(self._apps_running, self._apps.front(), self.page)
+            if target:
+                pages = cfg["pages"]
+                if target not in pages:  # a folder or page that has gone since
+                    top = target.split("/")[0]
+                    target = top if top in pages else cfg["start_page"]
+                log.info("%s -> showing '%s'", self.auto.reason, target)
+                self.request_page(target)
+
     def _watch_apps(self):
-        """Shows the pages linked to apps (see appwatch); its own thread, so a slow look at
-        the windows never delays the pad."""
-        apps = appwatch.Apps()
-        cfg, running, next_list = None, set(), 0.0
+        """Shows the pages linked to apps; its own thread, so a slow look at the windows never
+        delays the pad. The floating pad also asks for a look as it opens."""
         while not self._stop.wait(appwatch.FRONT_SECONDS):
             try:
-                if self.cfg is not cfg:
-                    cfg = self.cfg
-                    if cfg["links"]:
-                        self.auto.configure(cfg["links"])
-                    else:
-                        self.auto = appwatch.AutoPages()  # start afresh when links come back
-                if not cfg["links"]:
-                    continue
-                now = time.monotonic()
-                if now >= next_list:
-                    running, next_list = apps.running(), now + appwatch.RUNNING_SECONDS
-                target = self.auto.update(running, apps.front(), self.page)
-                if target:
-                    pages = self.cfg["pages"]
-                    if target not in pages:  # a folder or page that has gone since
-                        top = target.split("/")[0]
-                        target = top if top in pages else self.cfg["start_page"]
-                    log.info("%s -> showing '%s'", self.auto.reason, target)
-                    self._pending_page = target
+                self._check_apps()
             except Exception:
                 log.exception("watching apps")
                 self._stop.wait(5)
@@ -732,6 +765,7 @@ class Service:
         self.live.start()
         web.start(self, self.token)
         self.popup.start()
+        self.updates.start()
         last_cfg_check = 0.0
         waiting_logged = False
         failures = 0          # connects in a row the pad didn't answer
@@ -762,7 +796,7 @@ class Service:
                                                    "(it did not answer while being set up)")
                         else:  # unplugged: start again when it comes back
                             half_since, self.pad_problem = None, None
-                    self._stop.wait(1.5)
+                    self._nap(1.5)
                     continue
                 try:
                     self._connect()
@@ -772,7 +806,7 @@ class Service:
                 except PermissionError as e:
                     log.error("%s", e)
                     self.pad.close()
-                    self._stop.wait(10)
+                    self._nap(10)
                 except Exception as e:
                     log.warning("connect failed: %s", e)
                     self.pad.close()
@@ -783,7 +817,7 @@ class Service:
                     failures = failures + 1 if isinstance(e, PadNotAnswering) else 0
                     if failures >= REPLUG_AFTER:
                         self._needs_replug("the DisplayPad is not answering")
-                    self._stop.wait(2)
+                    self._nap(2)
                 continue
             try:
                 self._apply_pending()
@@ -804,10 +838,23 @@ class Service:
         self.live.stop()
         sound.stop_all()  # afplay runs on its own: stop what this service started
 
+    def _nap(self, seconds: float):
+        """Waits while the pad is away. A page change meanwhile (the floating pad, an app's
+        page) is made at once, so the floating pad shows it, and drawn when the pad is back."""
+        end = time.monotonic() + seconds
+        while not self._stop.is_set():
+            left = end - time.monotonic()
+            if left <= 0:
+                return
+            if self._wake.wait(left):
+                self._wake.clear()
+                self._apply_pending(draw=False)
+
     def stop(self, *_):
         keycapture.capture.cancel()  # give the keyboard back first
         self.popup.tap.set(None)
         self._stop.set()
+        self._wake.set()
 
 
 def check_permissions(cfg: dict):
